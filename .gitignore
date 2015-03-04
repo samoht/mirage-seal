@@ -1,0 +1,4 @@
+src/version.ml
+src/static.ml
+*~
+_build/
