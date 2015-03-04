@@ -89,6 +89,6 @@ let cmd =
     `P "Check bug reports at https://github.com/samoht/mirage-seal/issues.";
   ] in
   Term.(ret (pure seal $ verbose $ color $ directory $ key)),
-  Term.info "mirage-seal" ~version:"0.1.0" ~doc ~man
+  Term.info "mirage-seal" ~version:Version.current ~doc ~man
 
 let () = match Term.eval cmd with `Error _ -> exit 1 | _ -> exit 0

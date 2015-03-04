@@ -1,6 +1,10 @@
-SETUP = ocaml setup.ml
+VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
+VFILE   = src/version.ml
+SFILE   = src/static.ml
+SETUP   = ocaml setup.ml
+CRUNCH  = ocaml-crunch
 
-build: setup.data src/static.ml
+build: setup.data $(SFILE) $(VFILE)
 	$(SETUP) -build $(BUILDFLAGS)
 
 doc: setup.data build
@@ -23,7 +27,7 @@ reinstall: setup.data
 
 clean:
 	$(SETUP) -clean $(CLEANFLAGS)
-	rm -f src/static.ml src/static.mli
+	rm -f $(VFILE) $(SFILE)
 
 distclean:
 	$(SETUP) -distclean $(DISTCLEANFLAGS)
@@ -37,4 +41,7 @@ configure:
 .PHONY: build doc test all install uninstall reinstall clean distclean configure
 
 src/static.ml: static
-	ocaml-crunch static -o src/static.ml -m plain
+	$(CRUNCH) static -o $(SFILE) -m plain
+
+$(VFILE): _oasis
+	echo "let current = \"$(VERSION)\"" > $@
