@@ -11,8 +11,8 @@ build: [
   [make]
 ]
 depends: [
-  "mirage" {build >= "2.2.2"}
+  "mirage" {build & >= "2.2.1"}
   "cmdliner"
   "dolog"
-  "ocaml-crunch"
+  "crunch"
 ]
