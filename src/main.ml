@@ -30,27 +30,6 @@ let verbose =
   let doc = Arg.info ~doc:"Be more verbose." ["v";"verbose"] in
   Arg.(value & flag & doc)
 
-let color =
-  let color_tri_state =
-    try match Sys.getenv "COLOR" with
-      | "always" -> `Always
-      | "never"  -> `Never
-      | _        -> `Auto
-    with
-    | Not_found  -> `Auto
-  in
-  let doc = Arg.info ~docv:"WHEN"
-      ~doc:"Colorize the output. $(docv) must be `always', `never' or `auto'."
-      ["color"]
-  in
-  let choices = Arg.enum [ "always", `Always; "never", `Never; "auto", `Auto ] in
-  let arg = Arg.(value & opt choices color_tri_state & doc) in
-  let to_bool = function
-    | `Always -> true
-    | `Never  -> false
-    | `Auto   -> Unix.isatty Unix.stdout in
-  Term.(pure to_bool $ arg)
-
 let data =
   let doc = Arg.info ~docv:"DIR" ["d"; "data"]
       ~doc:"Location of the local directory containing the data to seal."
@@ -104,8 +83,7 @@ let mirage_configure ~dir ~mode keys =
   in
   cmd "cd %s && %s mirage configure %s" dir keys mode
 
-let seal verbose color seal_data seal_keys mode =
-  if color then Log.color_on ();
+let seal verbose seal_data seal_keys mode =
   if verbose then Log.set_log_level Log.DEBUG;
   let mode = match mode with
     | None | Some "xen" -> `Xen
@@ -152,7 +130,7 @@ let cmd =
     `S "BUGS";
     `P "Check bug reports at https://github.com/samoht/mirage-seal/issues.";
   ] in
-  Term.(pure seal $ verbose $ color $ data $ keys $ mode),
+  Term.(pure seal $ verbose $ data $ keys $ mode),
   Term.info "mirage-seal" ~version:Version.current ~doc ~man
 
 let () = match Term.eval cmd with `Error _ -> exit 1 | _ -> exit 0
