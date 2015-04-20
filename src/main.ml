@@ -31,22 +31,31 @@ let verbose =
   Arg.(value & flag & doc)
 
 let data =
-  let doc = Arg.info ~docv:"DIR" ["d"; "data"]
+  let doc =
+    Arg.info ~docv:"DIR" ["d"; "data"]
       ~doc:"Location of the local directory containing the data to seal."
   in
   Arg.(required & opt (some string) None & doc)
 
 let keys =
-  let doc = Arg.info ~docv:"DIR" ["k";"keys"]
+  let doc =
+    Arg.info ~docv:"DIR" ["k";"keys"]
       ~doc:"Location of the private keys (server.pem and server.key) to sign \
             the sealing."
   in
   Arg.(required & opt (some string) None & doc)
 
 let mode =
-  let doc = Arg.info ~docv:"MODE" ["t";"target"]
+  let doc =
+    Arg.info ~docv:"MODE" ["t";"target"]
       ~doc:"Target platform to compile the unikernel for. Valid values are: \
             $(i,xen), $(i,unix), $(i,macosx)."
+  in
+  Arg.(value & opt (some string) None & doc)
+
+let ip_address =
+  let doc =
+    Arg.info ~docv:"IP" ["ip-address"] ~doc:"IP address of the seal unikernel."
   in
   Arg.(value & opt (some string) None & doc)
 
@@ -83,13 +92,18 @@ let mirage_configure ~dir ~mode keys =
   in
   cmd "cd %s && %s mirage configure %s" dir keys mode
 
-let seal verbose seal_data seal_keys mode =
+let seal verbose seal_data seal_keys mode ip_address =
   if verbose then Log.set_log_level Log.DEBUG;
   let mode = match mode with
     | None | Some "xen" -> `Xen
     | Some "unix" -> `Unix
     | Some "macosx" -> `MacOSX
     | Some m -> err "%s is not a valid mirage target" m
+  in
+  let dhcp = ip_address = None in
+  let ip_address = match ip_address with
+    | None     -> []
+    | Some ip -> ["ADDRESS", ip]
   in
   let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
   let tls_dir = exec_dir / "keys" / "tls" in
@@ -102,11 +116,11 @@ let seal verbose seal_data seal_keys mode =
   output_static ~dir:exec_dir "config.ml";
   copy (seal_keys / "server.pem") ~dst:tls_dir;
   copy (seal_keys / "server.key") ~dst:tls_dir;
-  mirage_configure ~dir:exec_dir ~mode [
-    "DATA", seal_data;
-    "KEYS", exec_dir / "keys";
-    "DHCP", "true"
-  ];
+  mirage_configure ~dir:exec_dir ~mode ([
+      "DATA", seal_data;
+      "KEYS", exec_dir / "keys";
+      "DHCP", string_of_bool dhcp;
+    ] @ ip_address);
   cmd "cd %s && make" exec_dir;
   if mode = `Xen && not (Sys.file_exists "seal.xl") then
     output_static ~dir:(Sys.getcwd ()) "seal.xl";
@@ -130,7 +144,7 @@ let cmd =
     `S "BUGS";
     `P "Check bug reports at https://github.com/samoht/mirage-seal/issues.";
   ] in
-  Term.(pure seal $ verbose $ data $ keys $ mode),
+  Term.(pure seal $ verbose $ data $ keys $ mode $ ip_address),
   Term.info "mirage-seal" ~version:Version.current ~doc ~man
 
 let () = match Term.eval cmd with `Error _ -> exit 1 | _ -> exit 0
