@@ -1,66 +1,69 @@
 open Mirage
 
-(* If the Unix `MODE` is set, the choice of configuration changes:
-   MODE=crunch (or nothing): use static filesystem via crunch
-   MODE=fat: use FAT and block device (run ./make-fat-images.sh)
- *)
-let mode =
-  try match String.lowercase (Unix.getenv "FS") with
-    | "fat" -> `Fat
-    | _     -> `Crunch
+let err fmt = Printf.kprintf failwith fmt
+
+let get ?default name f =
+  let name = "SEAL_" ^ name in
+  try Unix.getenv name |> String.lowercase |> f
   with Not_found ->
-    `Crunch
+    match default with
+    | None   -> err "%s is not set" name
+    | Some d -> d
 
-let fat_ro dir =
-  kv_ro_of_fs (fat_of_files ~dir ())
+(* Network configuration *)
 
-let seal_dir =
-  try
-    let dir = Sys.getenv "SEAL_DIR" in
-    if not (Sys.file_exists dir) && not (Sys.is_directory dir) then
-      failwith (dir ^ " is not a valid directory")
-    else
-      dir
-  with Not_found ->
-    failwith "SEAL_DIR is not set"
-
-let fs = match mode with
-  | `Fat    -> fat_ro seal_dir
-  | `Crunch -> crunch seal_dir
+let ip = Ipaddr.V4.of_string_exn
+let address = get "ADDRESS" ~default:(ip "10.0.0.2")
+let netmask = get "NETMASK" ~default:(ip "255.255.255.0")
+let gateway = get "GATEWAY" ~default:(ip "10.0.0.1")
+let address = { address; netmask; gateways = [gateway] }
 
 let net =
-  try match Sys.getenv "NET" with
-    | "direct" -> `Direct
-    | "socket" -> `Socket
-    | _        -> `Direct
-  with Not_found -> `Direct
+  get "NET" ~default:`Direct  (function "socket" -> `Socket | _ -> `Direct)
 
-let dhcp =
-  try match Sys.getenv "DHCP" with
-    | "" -> false
-    | _  -> true
-  with Not_found -> false
+let dhcp = get "DHCP" ~default:false (function "" -> false | _  -> true)
 
-let stack console =
+let stack =
   match net, dhcp with
-  | `Direct, true  -> direct_stackv4_with_dhcp console tap0
-  | `Direct, false -> direct_stackv4_with_default_ipv4 console tap0
-  | `Socket, _     -> socket_stackv4 console [Ipaddr.V4.any]
+  | `Direct, true  -> direct_stackv4_with_dhcp default_console tap0
+  | `Direct, false -> direct_stackv4_with_default_ipv4 default_console tap0
+  | `Socket, _     -> socket_stackv4 default_console [Ipaddr.V4.any]
 
-let server =
-  conduit_direct (stack default_console)
+(* storage configuration *)
 
-let http_srv =
-  let mode = `TCP (`Port 80) in
-  http_server mode server
+let data =
+  get "DATA" (fun dir ->
+      if Sys.file_exists dir && Sys.is_directory dir then dir
+      else err "%s is not a valid directory." dir
+    )
+
+let keys =
+  get "KEYS" (fun dir ->
+      let pem = Filename.concat dir "server.pem" in
+      let key = Filename.concat dir "server.key" in
+      let file_exists f = Sys.file_exists f && not (Sys.is_directory f) in
+      if file_exists pem && file_exists key then dir
+      else err "Cannot find %s/server.{pem,key}." dir
+    )
+
+let data = crunch data
+let keys = crunch keys
+
+(* main app *)
 
 let main =
-  foreign "Dispatch.Main" (console @-> kv_ro @-> http @-> job)
+  foreign "Dispatch.Main"
+    (console @-> stackv4 @-> kv_ro @-> kv_ro @-> entropy @-> clock @-> job)
 
 let () =
   add_to_ocamlfind_libraries ["re.str"];
   add_to_opam_packages ["re"];
-
-  register "www" [
-    main $ default_console $ fs $ http_srv
+  register "seal" [
+    main
+    $ default_console
+    $ stack
+    $ data
+    $ keys
+    $ default_entropy
+    $ default_clock
   ]
