@@ -56,8 +56,10 @@ let main =
     (console @-> stackv4 @-> kv_ro @-> kv_ro @-> entropy @-> clock @-> job)
 
 let () =
-  add_to_ocamlfind_libraries ["re.str"];
-  add_to_opam_packages ["re"];
+  let ocamlfind = ["re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"] in
+  let opam = ["re"; "uri"; "mirage-http"] in
+  add_to_ocamlfind_libraries ocamlfind;
+  add_to_opam_packages opam;
   register "seal" [
     main
     $ default_console
