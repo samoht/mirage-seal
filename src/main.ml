@@ -15,12 +15,13 @@
  *)
 
 open Cmdliner
+open Printf
 
 let (/) = Filename.concat
 
-let err fmt = Printf.ksprintf failwith fmt
+let err fmt = ksprintf failwith fmt
 let cmd fmt =
-  Printf.ksprintf (fun str ->
+  ksprintf (fun str ->
       let i = Sys.command str in
       if i <> 0 then err "%s: failed with exit code %d." str i
     ) fmt
@@ -63,6 +64,13 @@ let keys =
   in
   Arg.(required & opt (some string) None & doc)
 
+let mode =
+  let doc = Arg.info ~docv:"MODE" ["t";"target"]
+      ~doc:"Target platform to compile the unikernel for. Valid values are: \
+            $(i,xen), $(i,unix), $(i,macosx)."
+  in
+  Arg.(value & opt (some string) None & doc)
+
 let output_static ~dir name =
   match Static.read name with
   | None   -> err "%s: file not found" name
@@ -82,27 +90,58 @@ let realpath dir =
   if Filename.is_relative dir then Sys.getcwd () / dir else dir
 
 let rmdir dir = cmd "rm -rf %s" dir
-let mkdir dir = cmd "mkdir %s" dir
+let mkdir dir = cmd "mkdir -p %s" dir
 
-let seal verbose color seal_data seal_keys =
+let mirage_configure ~dir ~mode keys =
+  let mode = match mode with
+    | `Xen -> "-t xen"
+    | `Unix -> "-t unix"
+    | `MacOSX -> "-t macosx"
+  in
+  let keys =
+    List.map (fun (k,v) -> sprintf "SEAL_%s=%s" k v) keys
+    |> String.concat " "
+  in
+  cmd "cd %s && %s mirage configure %s" dir keys mode
+
+let seal verbose color seal_data seal_keys mode =
   if color then Log.color_on ();
   if verbose then Log.set_log_level Log.DEBUG;
+  let mode = match mode with
+    | None | Some "xen" -> `Xen
+    | Some "unix" -> `Unix
+    | Some "macosx" -> `MacOSX
+    | Some m -> err "%s is not a valid mirage target" m
+  in
   let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
+  let tls_dir = exec_dir / "keys" / "tls" in
   rmdir exec_dir;
   mkdir exec_dir;
-  mkdir (exec_dir / "keys");
-  Printf.printf "exec-dir: %s\n%!" exec_dir;
+  mkdir tls_dir;
+  printf "exec-dir: %s\n%!" exec_dir;
   let seal_data = realpath seal_data in
   output_static ~dir:exec_dir "dispatch.ml";
   output_static ~dir:exec_dir "config.ml";
-  copy (seal_keys / "server.pem") ~dst:(exec_dir / "keys");
-  copy (seal_keys / "server.key") ~dst:(exec_dir / "keys");
-  cmd "cd %s && SEAL_DATA=%s SEAL_KEYS=%s mirage configure"
-    exec_dir seal_data (exec_dir / "keys");
+  copy (seal_keys / "server.pem") ~dst:tls_dir;
+  copy (seal_keys / "server.key") ~dst:tls_dir;
+  mirage_configure ~dir:exec_dir ~mode [
+    "DATA", seal_data;
+    "KEYS", exec_dir / "keys";
+    "DHCP", "true"
+  ];
   cmd "cd %s && make" exec_dir;
-  copy (exec_dir / "seal.xe") ~dst:(Sys.getcwd ());
   if not (Sys.file_exists "seal.xl") then
-    output_static ~dir:(Sys.getcwd ()) "seal.xl"
+    output_static ~dir:(Sys.getcwd ()) "seal.xl";
+  let exec_file = match mode with
+    | `Unix | `MacOSX -> exec_dir / "mir-seal"
+    | `Xen -> exec_dir / "mir-seal.xen"
+  in
+  copy exec_file ~dst:(Sys.getcwd ());
+  match mode with
+  | `Unix | `MacOSX ->
+    printf "\n\nTo run your sealed unikernel, use `sudo ./mir-seal`\n\n%!"
+  | `Xen ->
+    printf "\n\nTo run your sealed unikernel, use `sudo create mir-seal.xl`\n\n%!"
 
 let cmd =
   let doc = "Seal a local directory into a Mirage unikernel." in
@@ -113,7 +152,7 @@ let cmd =
     `S "BUGS";
     `P "Check bug reports at https://github.com/samoht/mirage-seal/issues.";
   ] in
-  Term.(pure seal $ verbose $ color $ data $ keys),
+  Term.(pure seal $ verbose $ color $ data $ keys $ mode),
   Term.info "mirage-seal" ~version:Version.current ~doc ~man
 
 let () = match Term.eval cmd with `Error _ -> exit 1 | _ -> exit 0
