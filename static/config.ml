@@ -21,7 +21,8 @@ let address = { address; netmask; gateways = [gateway] }
 let net =
   get "NET" ~default:`Direct  (function "socket" -> `Socket | _ -> `Direct)
 
-let dhcp = get "DHCP" ~default:false (function "" -> false | _  -> true)
+let dhcp =
+  get "DHCP" ~default:true (function "0" | "false" -> false | _  -> true)
 
 let stack =
   match net, dhcp with
