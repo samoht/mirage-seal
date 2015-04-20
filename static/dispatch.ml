@@ -100,6 +100,6 @@ struct
     tls_init keys entr >>= fun cfg ->
     let serve flow = with_tls c cfg flow ~f:(with_http c data) in
     S.listen_tcpv4 stack ~port:443 serve;
-    Lwt.return_unit
+    S.listen stack
 
 end
