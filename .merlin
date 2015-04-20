@@ -1,1 +1,4 @@
-PKG cmdliner dolog
+PKG cmdliner dolog mirage-types cohttp lwt cstruct tls.mirage tcpip mirage-http
+PKG mirage
+B _build/**
+S src/ static/
