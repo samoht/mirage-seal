@@ -1,0 +1,4 @@
+bin: [
+  "?_build/src/main.native" { "mirage-seal" }
+  "?_build/src/main.byte"   { "mirage-seal" }
+]
