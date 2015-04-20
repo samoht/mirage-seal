@@ -16,6 +16,15 @@
 
 open Cmdliner
 
+let (/) = Filename.concat
+
+let err fmt = Printf.ksprintf failwith fmt
+let cmd fmt =
+  Printf.ksprintf (fun str ->
+      let i = Sys.command str in
+      if i <> 0 then err "%s: failed with exit code %d." str i
+    ) fmt
+
 let verbose =
   let doc = Arg.info ~doc:"Be more verbose." ["v";"verbose"] in
   Arg.(value & flag & doc)
@@ -41,43 +50,59 @@ let color =
     | `Auto   -> Unix.isatty Unix.stdout in
   Term.(pure to_bool $ arg)
 
-let directory =
-  let doc = Arg.info ~docv:"DIRECTORY"
-      ~doc:"Location of the local directory to seal." [] in
-  Arg.(required & pos 0 (some string) None & doc)
+let data =
+  let doc = Arg.info ~docv:"DIR" ["d"; "data"]
+      ~doc:"Location of the local directory containing the data to seal."
+  in
+  Arg.(required & opt (some string) None & doc)
 
-let key =
-  let doc = Arg.info ~docv:"KEY"
-      ~doc:"Location of the private key to sign the sealing." [] in
-  Arg.(required & pos 0 (some string) None & doc)
+let keys =
+  let doc = Arg.info ~docv:"DIR" ["k";"keys"]
+      ~doc:"Location of the private keys (server.pem and server.key) to sign \
+            the sealing."
+  in
+  Arg.(required & opt (some string) None & doc)
 
-let seal verbose color seal_dir key =
+let output_static ~dir name =
+  match Static.read name with
+  | None   -> err "%s: file not found" name
+  | Some f ->
+    let oc = open_out (dir / name) in
+    output_string oc f;
+    close_out oc
+
+let copy ~dst src =
+  if Sys.file_exists dst && Sys.is_directory dst then
+    cmd "cp %s %s" src dst
+  else
+    err "copy: %s is not a valid directory" dst
+
+(* FIXME: proper real-path *)
+let realpath dir =
+  if Filename.is_relative dir then Sys.getcwd () / dir else dir
+
+let rmdir dir = cmd "rm -rf %s" dir
+let mkdir dir = cmd "mkdir %s" dir
+
+let seal verbose color seal_data seal_keys =
   if color then Log.color_on ();
   if verbose then Log.set_log_level Log.DEBUG;
-  let (/) = Filename.concat in
   let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
-  Printf.printf "DIR: %s\n%!" exec_dir;
-  (* FIXME: clean exec_seal directory *)
-  let () = try Unix.mkdir exec_dir 0o755 with Unix.Unix_error _ -> () in
-  (* FIXME: proper real-path *)
-  let seal_dir =
-    if Filename.is_relative seal_dir then Sys.getcwd () / seal_dir else seal_dir
-  in
-  let output name =
-    match Static.read name with
-    | None   -> failwith (name ^ ": file not found")
-    | Some f ->
-      let oc = open_out (exec_dir / name) in
-      output_string oc f;
-      close_out oc
-  in
-  output "dispatch.ml";
-  output "config.ml";
-  let i =
-    Sys.command (Printf.sprintf "cd %s && SEAL_DIR=%s mirage configure"
-                   exec_dir seal_dir)
-  in
-  exit i
+  rmdir exec_dir;
+  mkdir exec_dir;
+  mkdir (exec_dir / "keys");
+  Printf.printf "exec-dir: %s\n%!" exec_dir;
+  let seal_data = realpath seal_data in
+  output_static ~dir:exec_dir "dispatch.ml";
+  output_static ~dir:exec_dir "config.ml";
+  copy (seal_keys / "server.pem") ~dst:(exec_dir / "keys");
+  copy (seal_keys / "server.key") ~dst:(exec_dir / "keys");
+  cmd "cd %s && SEAL_DATA=%s SEAL_KEYS=%s mirage configure"
+    exec_dir seal_data (exec_dir / "keys");
+  cmd "cd %s && make" exec_dir;
+  copy (exec_dir / "seal.xe") ~dst:(Sys.getcwd ());
+  if not (Sys.file_exists "seal.xl") then
+    output_static ~dir:(Sys.getcwd ()) "seal.xl"
 
 let cmd =
   let doc = "Seal a local directory into a Mirage unikernel." in
@@ -88,7 +113,7 @@ let cmd =
     `S "BUGS";
     `P "Check bug reports at https://github.com/samoht/mirage-seal/issues.";
   ] in
-  Term.(ret (pure seal $ verbose $ color $ directory $ key)),
+  Term.(pure seal $ verbose $ color $ data $ keys),
   Term.info "mirage-seal" ~version:Version.current ~doc ~man
 
 let () = match Term.eval cmd with `Error _ -> exit 1 | _ -> exit 0
