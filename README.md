@@ -8,7 +8,7 @@ To serve the data in `files/` using the certificates
 
 ```
 $ mirage-seal --data=files/ --keys=secrets/ [--ip-address=<IP>]
-$ xl create mir-seal.xl -c
+$ xl create seal.xl -c
 ```
 
 ### Testing
