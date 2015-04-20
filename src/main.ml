@@ -130,7 +130,7 @@ let seal verbose color seal_data seal_keys mode =
     "DHCP", "true"
   ];
   cmd "cd %s && make" exec_dir;
-  if not (Sys.file_exists "seal.xl") then
+  if mode = `Xen && not (Sys.file_exists "seal.xl") then
     output_static ~dir:(Sys.getcwd ()) "seal.xl";
   let exec_file = match mode with
     | `Unix | `MacOSX -> exec_dir / "mir-seal"
