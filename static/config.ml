@@ -58,7 +58,7 @@ let main =
 
 let () =
   let ocamlfind = ["re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"] in
-  let opam = ["re"; "uri"; "mirage-http"] in
+  let opam = ["re"; "uri"; "tls"; "mirage-http"] in
   add_to_ocamlfind_libraries ocamlfind;
   add_to_opam_packages opam;
   register "seal" [
