@@ -16,7 +16,7 @@ You will need `xentropyd` installed and running:
 
 ```
 $ opam install xentropyd
-$ sudo xentropyd --daemon
+$ sudo $(which xentropyd) --daemon
 ```
 
 Then, to serve the data in `files/` using the certificates
