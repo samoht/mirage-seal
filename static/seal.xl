@@ -16,4 +16,4 @@ on_crash = 'preserve'
 # The network configuration is defined here:
 # http://xenbits.xen.org/docs/4.3-testing/misc/xl-network-configuration.html
 # An example would look like:
-vif = [ 'bridge=br0' ]
+vif = [ 'bridge=xenbr0' ]
