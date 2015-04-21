@@ -3,7 +3,7 @@
 name = 'seal'
 kernel = 'mir-seal.xen'
 builder = 'linux'
-memory = 8
+memory = 16
 on_crash = 'preserve'
 
 # You must define the network and block interfaces manually.
