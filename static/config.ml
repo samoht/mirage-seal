@@ -32,29 +32,19 @@ let stack =
 
 (* storage configuration *)
 
-let data =
-  get "DATA" (fun dir ->
+let dir =
+  get "DIR" (fun dir ->
       if Sys.file_exists dir && Sys.is_directory dir then dir
       else err "%s is not a valid directory." dir
     )
 
-let keys =
-  get "KEYS" (fun dir ->
-      let pem = Filename.concat dir "tls/server.pem" in
-      let key = Filename.concat dir "tls/server.key" in
-      let file_exists f = Sys.file_exists f && not (Sys.is_directory f) in
-      if file_exists pem && file_exists key then dir
-      else err "Cannot find %s/tls/server.{pem,key}." dir
-    )
-
-let data = crunch data
-let keys = crunch keys
+let dir = crunch dir
 
 (* main app *)
 
 let main =
   foreign "Dispatch.Main"
-    (console @-> stackv4 @-> kv_ro @-> kv_ro @-> entropy @-> clock @-> job)
+    (console @-> stackv4 @-> kv_ro @-> entropy @-> clock @-> job)
 
 let () =
   let ocamlfind = ["re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"] in
@@ -65,8 +55,7 @@ let () =
     main
     $ default_console
     $ stack
-    $ data
-    $ keys
+    $ dir
     $ default_entropy
     $ default_clock
   ]

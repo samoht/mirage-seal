@@ -67,9 +67,17 @@ let output_static ~dir name =
     output_string oc f;
     close_out oc
 
-let copy ~dst src =
-  if Sys.file_exists dst && Sys.is_directory dst then
+let copy_file ~dst src =
+  if Sys.file_exists src && not (Sys.is_directory dst) &&
+     Sys.file_exists dst && Sys.is_directory dst then
     cmd "cp %s %s" src dst
+  else
+    err "copy: %s is not a valid directory" dst
+
+let copy_dir ~dst src =
+  if Sys.file_exists src && Sys.is_directory src &&
+     Sys.file_exists dst && Sys.is_directory dst then
+    cmd "cp -r %s %s" src dst
   else
     err "copy: %s is not a valid directory" dst
 
@@ -106,18 +114,19 @@ let seal verbose seal_data seal_keys mode ip_address =
     | Some ip -> ["ADDRESS", ip]
   in
   let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
-  let tls_dir = exec_dir / "keys" / "tls" in
+  let seal_dir = exec_dir / "dir" in
+  let tls_dir = seal_dir / "tls" in
   rmdir exec_dir;
   mkdir exec_dir;
-  mkdir tls_dir;
   printf "exec-dir: %s\n%!" exec_dir;
   let seal_data = realpath seal_data in
   output_static ~dir:exec_dir "dispatch.ml";
   output_static ~dir:exec_dir "config.ml";
-  copy (seal_keys / "server.pem") ~dst:tls_dir;
-  copy (seal_keys / "server.key") ~dst:tls_dir;
+  copy_dir seal_data ~dst:seal_dir;
+  copy_file (seal_keys / "server.pem") ~dst:tls_dir;
+  copy_file (seal_keys / "server.key") ~dst:tls_dir;
   mirage_configure ~dir:exec_dir ~mode ([
-      "DATA", seal_data;
+      "DIR" , seal_dir;
       "KEYS", exec_dir / "keys";
       "DHCP", string_of_bool dhcp;
     ] @ ip_address);
@@ -128,7 +137,7 @@ let seal verbose seal_data seal_keys mode ip_address =
     | `Unix | `MacOSX -> exec_dir / "mir-seal"
     | `Xen -> exec_dir / "mir-seal.xen"
   in
-  copy exec_file ~dst:(Sys.getcwd ());
+  copy_file exec_file ~dst:(Sys.getcwd ());
   match mode with
   | `Unix | `MacOSX ->
     printf "\n\nTo run your sealed unikernel, use `sudo ./mir-seal`\n\n%!"

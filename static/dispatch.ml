@@ -53,17 +53,16 @@ end
 
 (* HTTPS *)
 module Main
-    (C : CONSOLE) (S : STACKV4)
-    (DATA : KV_RO) (KEYS: KV_RO)
+    (C : CONSOLE) (S : STACKV4) (KV : KV_RO)
     (E : ENTROPY) (Clock : CLOCK) =
 struct
 
   module TCP  = S.TCPV4
   module TLS  = Tls_mirage.Make (TCP) (E)
-  module X509 = Tls_mirage.X509 (KEYS) (Clock)
+  module X509 = Tls_mirage.X509 (KV) (Clock)
 
   module Http     = Cohttp_mirage.Server(TLS)
-  module Dispatch = Dispatch(C)(DATA)(Http)
+  module Dispatch = Dispatch(C)(KV)(Http)
 
   let log c fmt = Printf.ksprintf (C.log c) fmt
 
@@ -96,9 +95,9 @@ struct
     let conf = Tls.Config.server ~certificates:(`Single cert) () in
     Lwt.return conf
 
-  let start c stack data keys entr _clock =
-    tls_init keys entr >>= fun cfg ->
-    let serve flow = with_tls c cfg flow ~f:(with_http c data) in
+  let start c stack kv entr _clock =
+    tls_init kv entr >>= fun cfg ->
+    let serve flow = with_tls c cfg flow ~f:(with_http c kv) in
     S.listen_tcpv4 stack ~port:443 serve;
     S.listen stack
 
