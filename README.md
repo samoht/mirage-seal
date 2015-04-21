@@ -37,5 +37,7 @@ certificate using openSSL:
 
 ```
 $ mkdir secrets
-$ openssl req -x509 -newkey rsa:2048 -keyout secrets/server.key -out secrets/server.pem -subj '/CN=<IP>'
+$ openssl genrsa -des3 -out server.key 2048
+$ openssl req -new -key server.key -out server.csr -subj '/CN=<IP>'
+$ openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.pem
 ```
