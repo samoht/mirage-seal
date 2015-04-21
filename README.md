@@ -7,19 +7,13 @@ serving its contents over HTTPS.
 
 ```
 $ opam remote add mirage-dev https://github.com/mirage/mirage-dev.git
-$ opam pin add mirage-seal https://github.com/samoht/mirage-seal
+$ opam pind add -n tcpip https//github.com/mirage/mirage-tcpip.git
+$ opam pin add -y mirage-seal https://github.com/samoht/mirage-seal
 ```
 
 ### Use
 
-You will need `xentropyd` installed and running:
-
-```
-$ opam install xentropyd
-$ sudo $(which xentropyd) --daemon
-```
-
-Then, to serve the data in `files/` using the certificates
+To serve the data in `files/` using the certificates
 `secrets/server.key` and `server.pem`, simply do:
 
 ```
