@@ -18,5 +18,5 @@ certificate using openSSL:
 
 ```
 $ mkdir secrets
-$ openssl req -x509 -newkey rsa:2048 -keyout secrets/server.key -out secrets/server.cert -subj '/CN=<IP>'
+$ openssl req -x509 -newkey rsa:2048 -keyout secrets/server.key -out secrets/server.pem -subj '/CN=<IP>'
 ```
