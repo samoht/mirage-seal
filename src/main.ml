@@ -133,7 +133,7 @@ let seal verbose seal_data seal_keys mode ip_address =
   | `Unix | `MacOSX ->
     printf "\n\nTo run your sealed unikernel, use `sudo ./mir-seal`\n\n%!"
   | `Xen ->
-    printf "\n\nTo run your sealed unikernel, use `sudo create mir-seal.xl`\n\n%!"
+    printf "\n\nTo run your sealed unikernel, use `sudo xl create seal.xl -c`\n\n%!"
 
 let cmd =
   let doc = "Seal a local directory into a Mirage unikernel." in
