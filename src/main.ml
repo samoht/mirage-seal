@@ -87,7 +87,10 @@ let realpath dir =
   if Filename.is_relative dir then Sys.getcwd () / dir else dir
 
 let rmdir dir = cmd "rm -rf %s" dir
-let mkdir dir = cmd "mkdir -p %s" dir
+
+let mkdir dir =
+  if not (Sys.file_exists dir) then cmd "mkdir -p %s" dir
+  else err "%s already exists." dir
 
 let mirage_configure ~dir ~mode keys =
   let mode = match mode with
@@ -124,6 +127,7 @@ let seal verbose seal_data seal_keys mode ip_address =
   output_static ~dir:exec_dir "dispatch.ml";
   output_static ~dir:exec_dir "config.ml";
   copy_dir seal_data ~dst:seal_dir;
+  mkdir tls_dir;
   copy_file (seal_keys / "server.pem") ~dst:tls_dir;
   copy_file (seal_keys / "server.key") ~dst:tls_dir;
   mirage_configure ~dir:exec_dir ~mode ([
