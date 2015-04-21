@@ -69,18 +69,18 @@ let output_static ~dir name =
     close_out oc
 
 let copy_file ~dst src =
-  if Sys.file_exists src && not (Sys.is_directory dst) &&
+  if Sys.file_exists src && not (Sys.is_directory src) &&
      Sys.file_exists dst && Sys.is_directory dst then
     cmd "cp %s %s" src dst
   else
-    err "copy: %s is not a valid directory" dst
+    err "copy-file: %s is not a valid directory" dst
 
 let copy_dir ~dst src =
   if Sys.file_exists src && Sys.is_directory src &&
      not (Sys.file_exists dst) then
     cmd "cp -r %s %s" src dst
   else
-    err "copy: %s is not a valid directory" dst
+    err "copy-dir: %s is not a valid directory" dst
 
 (* FIXME: proper real-path *)
 let realpath dir =
