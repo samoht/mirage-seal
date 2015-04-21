@@ -44,7 +44,7 @@ let keys =
       let key = Filename.concat dir "tls/server.key" in
       let file_exists f = Sys.file_exists f && not (Sys.is_directory f) in
       if file_exists pem && file_exists key then dir
-      else err "Cannot find %s/server.{pem,key}." dir
+      else err "Cannot find %s/tls/server.{pem,key}." dir
     )
 
 let data = crunch data
