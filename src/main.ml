@@ -22,6 +22,7 @@ let (/) = Filename.concat
 let err fmt = ksprintf failwith fmt
 let cmd fmt =
   ksprintf (fun str ->
+      printf "=> %s\n%!" str;
       let i = Sys.command str in
       if i <> 0 then err "%s: failed with exit code %d." str i
     ) fmt
@@ -76,7 +77,7 @@ let copy_file ~dst src =
 
 let copy_dir ~dst src =
   if Sys.file_exists src && Sys.is_directory src &&
-     Sys.file_exists dst && Sys.is_directory dst then
+     not (Sys.file_exists dst) then
     cmd "cp -r %s %s" src dst
   else
     err "copy: %s is not a valid directory" dst
