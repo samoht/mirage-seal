@@ -118,20 +118,18 @@ let seal verbose seal_data seal_keys mode ip_address =
     | Some ip -> ["ADDRESS", ip]
   in
   let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
-  let seal_dir = exec_dir / "dir" in
-  let tls_dir = seal_dir / "tls" in
+  let tls_dir = exec_dir / "keys" / "tls" in
   rmdir exec_dir;
   mkdir exec_dir;
+  mkdir tls_dir;
   printf "exec-dir: %s\n%!" exec_dir;
   let seal_data = realpath seal_data in
   output_static ~dir:exec_dir "dispatch.ml";
   output_static ~dir:exec_dir "config.ml";
-  copy_dir seal_data ~dst:seal_dir;
-  mkdir tls_dir;
   copy_file (seal_keys / "server.pem") ~dst:tls_dir;
   copy_file (seal_keys / "server.key") ~dst:tls_dir;
   mirage_configure ~dir:exec_dir ~mode ([
-      "DIR" , seal_dir;
+      "DATA", seal_data;
       "KEYS", exec_dir / "keys";
       "DHCP", string_of_bool dhcp;
     ] @ ip_address);
