@@ -13,9 +13,9 @@ let get ?default name f =
 (* Network configuration *)
 
 let ip = Ipaddr.V4.of_string_exn
-let address = get "ADDRESS" ~default:(ip "10.0.0.2")
-let netmask = get "NETMASK" ~default:(ip "255.255.255.0")
-let gateway = get "GATEWAY" ~default:(ip "10.0.0.1")
+let address = get "ADDRESS" ~default:(ip "10.0.0.2") ip
+let netmask = get "NETMASK" ~default:(ip "255.255.255.0") ip
+let gateway = get "GATEWAY" ~default:(ip "10.0.0.1") ip
 let address = { address; netmask; gateways = [gateway] }
 
 let net =
@@ -27,7 +27,7 @@ let dhcp =
 let stack =
   match net, dhcp with
   | `Direct, true  -> direct_stackv4_with_dhcp default_console tap0
-  | `Direct, false -> direct_stackv4_with_default_ipv4 default_console tap0
+  | `Direct, false -> direct_stackv4_with_static_ipv4 default_console tap0 address
   | `Socket, _     -> socket_stackv4 default_console [Ipaddr.V4.any]
 
 (* storage configuration *)
