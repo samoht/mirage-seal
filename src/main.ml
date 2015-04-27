@@ -56,7 +56,19 @@ let mode =
 
 let ip_address =
   let doc =
-    Arg.info ~docv:"IP" ["ip-address"] ~doc:"IP address of the seal unikernel."
+    Arg.info ~docv:"IP" ["ip"] ~doc:"IP address of the seal unikernel."
+  in
+  Arg.(value & opt (some string) None & doc)
+
+let ip_netmask =
+  let doc =
+    Arg.info ~docv:"IP" ["nm"] ~doc:"IP netmask of the seal unikernel."
+  in
+  Arg.(value & opt (some string) None & doc)
+
+let ip_gateway =
+  let doc =
+    Arg.info ~docv:"IP" ["gw"] ~doc:"IP gateway of the seal unikernel."
   in
   Arg.(value & opt (some string) None & doc)
 
@@ -104,7 +116,7 @@ let mirage_configure ~dir ~mode keys =
   in
   cmd "cd %s && %s mirage configure %s" dir keys mode
 
-let seal verbose seal_data seal_keys mode ip_address =
+let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway =
   if verbose then Log.set_log_level Log.DEBUG;
   let mode = match mode with
     | None | Some "xen" -> `Xen
@@ -112,10 +124,18 @@ let seal verbose seal_data seal_keys mode ip_address =
     | Some "macosx" -> `MacOSX
     | Some m -> err "%s is not a valid mirage target" m
   in
-  let dhcp = ip_address = None in
+  let dhcp = ip_address = None && ip_netmask = None && ip_gateway = None in
   let ip_address = match ip_address with
     | None     -> []
     | Some ip -> ["ADDRESS", ip]
+  in
+  let ip_netmask = match ip_netmask with
+    | None     -> []
+    | Some ip -> ["NETMASK", ip]
+  in
+  let ip_gateway = match ip_gateway with
+    | None     -> []
+    | Some ip -> ["GATEWAY", ip]
   in
   let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
   let tls_dir = exec_dir / "keys" / "tls" in
@@ -132,7 +152,7 @@ let seal verbose seal_data seal_keys mode ip_address =
       "DATA", seal_data;
       "KEYS", exec_dir / "keys";
       "DHCP", string_of_bool dhcp;
-    ] @ ip_address);
+    ] @ ip_address @ ip_netmask @ ip_gateway);
   cmd "cd %s && make" exec_dir;
   if mode = `Xen && not (Sys.file_exists "seal.xl") then
     output_static ~dir:(Sys.getcwd ()) "seal.xl";
@@ -156,7 +176,8 @@ let cmd =
     `S "BUGS";
     `P "Check bug reports at https://github.com/samoht/mirage-seal/issues.";
   ] in
-  Term.(pure seal $ verbose $ data $ keys $ mode $ ip_address),
+  Term.(pure seal $ verbose $ data $ keys $ mode
+        $ ip_address $ ip_netmask $ ip_gateway),
   Term.info "mirage-seal" ~version:Version.current ~doc ~man
 
 let () = match Term.eval cmd with `Error _ -> exit 1 | _ -> exit 0
