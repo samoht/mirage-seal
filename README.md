@@ -44,6 +44,6 @@ certificate using openSSL (from [StackOverflow](http://stackoverflow.com/questio
 
 ```
 $ mkdir secrets
-$ openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -subj '/CN=<IP>'
+$ openssl req -x509 -newkey rsa:2048 -keyout secrets/server.key -out secrets/server.pem -days 365 -subj '/CN=<IP>'
 $ openssl rsa -in secrets/server.key -out secrets/server.key
 ```
