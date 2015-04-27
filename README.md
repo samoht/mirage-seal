@@ -11,8 +11,8 @@ For now on, you need to set up few opam pins:
 opam remote add mirage-dev https://github.com/mirage/mirage-dev.git
 opam pin add -n conduit https://github.com/samoht/ocaml-conduit.git
 opam pin add -n mirage https://github.com/pqwy/mirage.git#enthalpy
-opam pin add -n mirage-entropy-xen https://github.com/samoht/mirage-entropy.git#cpu-assist
-opam pin add -n nocrypto https://github.com/mirleft/ocaml-nocrypto.git#internalized-entropy
+opam pin add -n mirage-entropy-xen --xen
+opam pin add -n nocrypto --dev
 opam pin add -n tls --dev
 opam pin add -n x509 --dev
 opam pin add -n mirage-seal https://github.com/samoht/mirage-seal.git
