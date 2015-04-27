@@ -54,7 +54,7 @@ let keys = crunch keys
 
 let main =
   foreign "Dispatch.Main"
-    (console @-> stackv4 @-> kv_ro @-> kv_ro @-> entropy @-> clock @-> job)
+    (console @-> stackv4 @-> kv_ro @-> kv_ro @-> clock @-> job)
 
 let () =
   let ocamlfind = ["re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"] in
@@ -67,6 +67,5 @@ let () =
     $ stack
     $ data
     $ keys
-    $ default_entropy
     $ default_clock
   ]
