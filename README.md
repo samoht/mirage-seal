@@ -34,7 +34,7 @@ $ mirage-seal --data=files/ --keys=secrets/ [--ip=<IP>]
 $ xl create seal.xl -c
 ```
 
-If `--ip-address` is not specified, the unikernel will use DHCP to
+If `--ip` is not specified, the unikernel will use DHCP to
 acquire an IP address on boot.
 
 ### Test
