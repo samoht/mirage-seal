@@ -8,13 +8,7 @@ serving its contents over HTTPS.
 For now on, you need to set up few opam pins:
 
 ```
-opam remote add mirage-dev https://github.com/mirage/mirage-dev.git
-opam pin add -n conduit https://github.com/samoht/ocaml-conduit.git
-opam pin add -n mirage https://github.com/pqwy/mirage.git#enthalpy
-opam pin add -n mirage-entropy-xen --xen
-opam pin add -n nocrypto --dev
-opam pin add -n tls --dev
-opam pin add -n x509 --dev
+opam remote add mirage-dev https://github.com/samoht/mirage-dev.git
 opam pin add -n mirage-seal https://github.com/samoht/mirage-seal.git
 ```
 
