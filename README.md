@@ -9,7 +9,7 @@ For now on, you need to set up few opam pins:
 
 ```
 opam remote add mirage-dev https://github.com/mirage/mirage-dev.git
-opam pin add -n mirage-seal https://github.com/samoht/mirage-seal.git
+opam pin add -n mirage-seal https://github.com/mirage/mirage-seal.git
 ```
 
 The you can install `mirage-seal` using opam:
