@@ -72,6 +72,10 @@ let ip_gateway =
   in
   Arg.(value & opt (some string) None & doc)
 
+let sockets =
+  let doc = Arg.info ~doc:"Use the kernek TCP/IP network stack." ["sockets"] in
+  Arg.(value & flag & doc)
+
 let output_static ~dir name =
   match Static.read name with
   | None   -> err "%s: file not found" name
@@ -116,26 +120,34 @@ let mirage_configure ~dir ~mode keys =
   in
   cmd "cd %s && %s mirage configure %s" dir keys mode
 
-let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway =
+let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway
+    sockets =
   if verbose then Log.set_log_level Log.DEBUG;
-  let mode = match mode with
-    | None | Some "xen" -> `Xen
-    | Some "unix" -> `Unix
-    | Some "macosx" -> `MacOSX
-    | Some m -> err "%s is not a valid mirage target" m
+  let mode = match sockets, mode with
+    | true, None -> `Unix
+    | false, (None | Some "xen") -> `Xen
+    | _, Some "unix" -> `Unix
+    | _, Some "macosx" -> `MacOSX
+    | _, Some m -> err "%s is not a valid mirage target" m
   in
-  let dhcp = ip_address = None && ip_netmask = None && ip_gateway = None in
-  let ip_address = match ip_address with
-    | None     -> []
-    | Some ip -> ["ADDRESS", ip]
+  let dhcp =
+    not sockets && ip_address = None && ip_netmask = None && ip_gateway = None
   in
-  let ip_netmask = match ip_netmask with
-    | None     -> []
-    | Some ip -> ["NETMASK", ip]
+  let ip_address = match sockets, dhcp, ip_address with
+    | false, false, Some ip -> ["ADDRESS", ip]
+    | _ -> []
   in
-  let ip_gateway = match ip_gateway with
-    | None     -> []
-    | Some ip -> ["GATEWAY", ip]
+  let ip_netmask = match sockets, dhcp, ip_netmask with
+    | false, false, Some ip -> ["NETMASK", ip]
+    | _ -> []
+  in
+  let ip_gateway = match sockets, dhcp, ip_gateway with
+    | false, false, Some ip -> ["GATEWAY", ip]
+    | _ -> []
+  in
+  let net = match sockets with
+    | true  -> ["NET", "socket"]
+    | false -> []
   in
   let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
   let tls_dir = exec_dir / "keys" / "tls" in
@@ -152,7 +164,7 @@ let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway =
       "DATA", seal_data;
       "KEYS", exec_dir / "keys";
       "DHCP", string_of_bool dhcp;
-    ] @ ip_address @ ip_netmask @ ip_gateway);
+    ] @ ip_address @ ip_netmask @ ip_gateway @ net);
   cmd "cd %s && make" exec_dir;
   if mode = `Xen && not (Sys.file_exists "seal.xl") then
     output_static ~dir:(Sys.getcwd ()) "seal.xl";
@@ -177,7 +189,7 @@ let cmd =
     `P "Check bug reports at https://github.com/samoht/mirage-seal/issues.";
   ] in
   Term.(pure seal $ verbose $ data $ keys $ mode
-        $ ip_address $ ip_netmask $ ip_gateway),
+        $ ip_address $ ip_netmask $ ip_gateway $ sockets),
   Term.info "mirage-seal" ~version:Version.current ~doc ~man
 
 let () = match Term.eval cmd with `Error _ -> exit 1 | _ -> exit 0

@@ -37,18 +37,6 @@ module Dispatch (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
         (fun exn ->
            S.respond_not_found ())
 
-  let start c fs http =
-    (* HTTP callback *)
-    let callback conn_id request body =
-      let uri = S.Request.uri request in
-      dispatcher fs (split_path uri)
-    in
-    let conn_closed (_,conn_id) =
-      let cid = Cohttp.Connection.to_string conn_id in
-      C.log c (Printf.sprintf "conn %s closed" cid)
-    in
-    http (S.make ~conn_closed ~callback ())
-
 end
 
 (* HTTPS *)
