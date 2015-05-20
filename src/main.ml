@@ -73,7 +73,7 @@ let ip_gateway =
   Arg.(value & opt (some string) None & doc)
 
 let sockets =
-  let doc = Arg.info ~doc:"Use the kernek TCP/IP network stack." ["sockets"] in
+  let doc = Arg.info ~doc:"Use the kernel TCP/IP network stack." ["sockets"] in
   Arg.(value & flag & doc)
 
 let output_static ~dir name =
