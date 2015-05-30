@@ -30,10 +30,13 @@ module Dispatch (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
     | [] | [""] -> dispatcher fs ["index.html"]
     | segments ->
       let path = String.concat "/" segments in
+      let mimetype = Magic_mime.lookup path in
+      let headers = Cohttp.Header.init () in
+      let headers = Cohttp.Header.add headers "content-type" mimetype in
       Lwt.catch
         (fun () ->
            read_fs fs path >>= fun body ->
-           S.respond_string ~status:`OK ~body ())
+           S.respond_string ~status:`OK ~body ~headers ())
         (fun exn ->
            S.respond_not_found ())
 

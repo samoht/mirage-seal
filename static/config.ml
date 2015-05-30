@@ -57,8 +57,8 @@ let main =
     (console @-> stackv4 @-> kv_ro @-> kv_ro @-> clock @-> job)
 
 let () =
-  let ocamlfind = ["re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"] in
-  let opam = ["re"; "uri"; "tls"; "mirage-http"] in
+  let ocamlfind = ["re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"; "magic-mime"] in
+  let opam = ["re"; "uri"; "tls"; "mirage-http"; "magic-mime"] in
   add_to_ocamlfind_libraries ocamlfind;
   add_to_opam_packages opam;
   register "seal" [
