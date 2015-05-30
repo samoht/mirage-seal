@@ -76,7 +76,7 @@ struct
       log c "[%s] closing." cid
     in
     let http = Http.make ~conn_closed ~callback () in
-    Http.listen http flow () ()
+    Http.listen http flow
 
   let tls_init kv =
     X509.certificate kv `Default >>= fun cert ->
