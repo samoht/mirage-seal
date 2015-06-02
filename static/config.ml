@@ -1,6 +1,12 @@
 open Mirage
 
-let err fmt = Printf.kprintf failwith fmt
+let red fmt = Printf.sprintf ("\027[31m"^^fmt^^"\027[m")
+let red_s = red "%s"
+let err fmt =
+  Printf.kprintf (fun str ->
+      Printf.eprintf "%s %s\n%!" (red_s "[ERROR] ") str;
+      exit 1
+    ) fmt
 
 let get ?default name f =
   let name = "SEAL_" ^ name in
@@ -40,8 +46,9 @@ let data =
       if Sys.file_exists dir && Sys.is_directory dir then dir
       else err "%s is not a valid directory." dir
     )
+  |> crunch
 
-let keys =
+let keys () =
   get "KEYS" (fun dir ->
       let pem = Filename.concat dir "tls/server.pem" in
       let key = Filename.concat dir "tls/server.key" in
@@ -49,9 +56,7 @@ let keys =
       if file_exists pem && file_exists key then dir
       else err "Cannot find %s/tls/server.{pem,key}." dir
     )
-
-let data = crunch data
-let keys = crunch keys
+  |> crunch
 
 let with_https = get "HTTPS" ~default:false bool_of_env
 
@@ -78,7 +83,7 @@ let () =
                $ default_console
                $ stack
                $ data
-               $ keys
+               $ keys ()
                $ default_clock
     | false -> http
                $ default_console
