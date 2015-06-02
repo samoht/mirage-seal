@@ -63,8 +63,8 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
 
 end
 
-(* HTTPS *)
-module HTTPS
+(* HTTP *)
+module HTTP
     (C : CONSOLE) (S : STACKV4)
     (DATA : KV_RO)
     (Clock : CLOCK) =
@@ -73,7 +73,7 @@ struct
   module Http     = Cohttp_mirage.Server(S.TCPV4)
   module Dispatch = Dispatch(C)(DATA)(Http)
 
-  let start c stack data keys _clock =
+  let start c stack data _clock =
     let serve flow = Dispatch.with_http c data flow in
     S.listen_tcpv4 stack ~port:80 serve;
     S.listen stack
