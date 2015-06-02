@@ -14,7 +14,14 @@ let split_path uri =
     (aux (Re_str.(split_delim (regexp_string "/") path)))
 
 (* HTTP handler *)
-module Dispatch (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
+module type HTTP = sig
+  include Cohttp_lwt.Server
+  val listen: t -> IO.conn -> unit Lwt.t
+end
+
+module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
+
+  let log c fmt = Printf.ksprintf (C.log c) fmt
 
   let read_fs fs name =
     FS.size fs name >>= function
@@ -40,10 +47,41 @@ module Dispatch (C:CONSOLE) (FS:KV_RO) (S:Cohttp_lwt.Server) = struct
         (fun exn ->
            S.respond_not_found ())
 
+  let with_http c kv flow =
+    let callback (_, cid) request body =
+      let uri = S.Request.uri request in
+      let cid = Cohttp.Connection.to_string cid in
+      log c "[%s] serving %s." cid (Uri.to_string uri);
+      dispatcher kv (split_path uri)
+    in
+    let conn_closed (_,cid) =
+      let cid = Cohttp.Connection.to_string cid in
+      log c "[%s] closing." cid
+    in
+    let http = S.make ~conn_closed ~callback () in
+    S.listen http flow
+
 end
 
 (* HTTPS *)
-module Main
+module HTTPS
+    (C : CONSOLE) (S : STACKV4)
+    (DATA : KV_RO)
+    (Clock : CLOCK) =
+struct
+
+  module Http     = Cohttp_mirage.Server(S.TCPV4)
+  module Dispatch = Dispatch(C)(DATA)(Http)
+
+  let start c stack data keys _clock =
+    let serve flow = Dispatch.with_http c data flow in
+    S.listen_tcpv4 stack ~port:80 serve;
+    S.listen stack
+
+end
+
+(* HTTPS *)
+module HTTPS
     (C : CONSOLE) (S : STACKV4)
     (DATA : KV_RO) (KEYS: KV_RO)
     (Clock : CLOCK) =
@@ -67,20 +105,6 @@ struct
     | `Ok tls  -> log "TLS ok"; f tls >>= fun () ->TLS.close tls
     | `Eof     -> log "TLS eof"; TCP.close tcp
 
-  let with_http c kv flow =
-    let callback (_, cid) request body =
-      let uri = Http.Request.uri request in
-      let cid = Cohttp.Connection.to_string cid in
-      log c "[%s] serving %s." cid (Uri.to_string uri);
-      Dispatch.dispatcher kv (split_path uri)
-    in
-    let conn_closed (_,cid) =
-      let cid = Cohttp.Connection.to_string cid in
-      log c "[%s] closing." cid
-    in
-    let http = Http.make ~conn_closed ~callback () in
-    Http.listen http flow
-
   let tls_init kv =
     X509.certificate kv `Default >>= fun cert ->
     let conf = Tls.Config.server ~certificates:(`Single cert) () in
@@ -88,7 +112,7 @@ struct
 
   let start c stack data keys _clock =
     tls_init keys >>= fun cfg ->
-    let serve flow = with_tls c cfg flow ~f:(with_http c data) in
+    let serve flow = with_tls c cfg flow ~f:(Dispatch.with_http c data) in
     S.listen_tcpv4 stack ~port:443 serve;
     S.listen stack
 

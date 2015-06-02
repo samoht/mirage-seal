@@ -10,6 +10,10 @@ let get ?default name f =
     | None   -> err "%s is not set" name
     | Some d -> d
 
+let bool_of_env = function
+  | "" | "0" | "false" -> false
+  | _  -> true
+
 (* Network configuration *)
 
 let ip = Ipaddr.V4.of_string_exn
@@ -21,8 +25,7 @@ let address = { address; netmask; gateways = [gateway] }
 let net =
   get "NET" ~default:`Direct  (function "socket" -> `Socket | _ -> `Direct)
 
-let dhcp =
-  get "DHCP" ~default:true (function "0" | "false" -> false | _  -> true)
+let dhcp = get "DHCP" ~default:true bool_of_env
 
 let stack =
   match net, dhcp with
@@ -50,22 +53,36 @@ let keys =
 let data = crunch data
 let keys = crunch keys
 
+let with_https = get "HTTPS" ~default:false bool_of_env
+
 (* main app *)
 
-let main =
-  foreign "Dispatch.Main"
+let https =
+  foreign "Dispatch.HTTPS"
     (console @-> stackv4 @-> kv_ro @-> kv_ro @-> clock @-> job)
 
+let http =
+  foreign "Dispatch.HTTP"
+    (console @-> stackv4 @-> kv_ro @-> clock @-> job)
+
 let () =
-  let ocamlfind = ["re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"; "magic-mime"] in
+  let ocamlfind = [
+    "re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"; "magic-mime"
+  ] in
   let opam = ["re"; "uri"; "tls"; "mirage-http"; "magic-mime"] in
   add_to_ocamlfind_libraries ocamlfind;
   add_to_opam_packages opam;
   register "seal" [
-    main
-    $ default_console
-    $ stack
-    $ data
-    $ keys
-    $ default_clock
+    match with_https with
+    | true  -> https
+               $ default_console
+               $ stack
+               $ data
+               $ keys
+               $ default_clock
+    | false -> http
+               $ default_console
+               $ stack
+               $ data
+               $ default_clock
   ]

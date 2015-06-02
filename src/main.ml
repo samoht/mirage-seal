@@ -44,7 +44,7 @@ let keys =
       ~doc:"Location of the private keys (server.pem and server.key) to sign \
             the sealing."
   in
-  Arg.(required & opt (some string) None & doc)
+  Arg.(value & opt (some string) None & doc)
 
 let mode =
   let doc =
@@ -158,13 +158,20 @@ let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway
   let seal_data = realpath seal_data in
   output_static ~dir:exec_dir "dispatch.ml";
   output_static ~dir:exec_dir "config.ml";
-  copy_file (seal_keys / "server.pem") ~dst:tls_dir;
-  copy_file (seal_keys / "server.key") ~dst:tls_dir;
+  let () = match seal_keys with
+    | None   -> ()
+    | Some d ->
+      copy_file (d / "server.pem") ~dst:tls_dir;
+      copy_file (d / "server.key") ~dst:tls_dir;
+  in
+  let keys = match seal_keys with
+    | None   -> ["HTTPS", "0"]
+    | Some _ -> ["HTTPS", "1"; "KEYS", exec_dir / "keys"]
+  in
   mirage_configure ~dir:exec_dir ~mode ([
       "DATA", seal_data;
-      "KEYS", exec_dir / "keys";
       "DHCP", string_of_bool dhcp;
-    ] @ ip_address @ ip_netmask @ ip_gateway @ net);
+    ] @ ip_address @ ip_netmask @ ip_gateway @ net @ keys);
   cmd "cd %s && make" exec_dir;
   if mode = `Xen && not (Sys.file_exists "seal.xl") then
     output_static ~dir:(Sys.getcwd ()) "seal.xl";
