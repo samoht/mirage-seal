@@ -44,7 +44,14 @@ let keys =
       ~doc:"Location of the private keys (server.pem and server.key) to sign \
             the sealing."
   in
-  Arg.(required & opt (some string) None & doc)
+  Arg.(value & opt (some string) None & doc)
+
+let no_tls =
+  let doc =
+    Arg.info ["no-tls"]
+      ~doc:"Do not use TLS and serve the static files over HTTP only."
+  in
+  Arg.(value & flag & doc)
 
 let mode =
   let doc =
@@ -121,7 +128,7 @@ let mirage_configure ~dir ~mode keys =
   cmd "cd %s && %s mirage configure %s" dir keys mode
 
 let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway
-    sockets =
+    sockets no_tls =
   if verbose then Log.set_log_level Log.DEBUG;
   let mode = match sockets, mode with
     | true, None -> `Unix
@@ -158,13 +165,22 @@ let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway
   let seal_data = realpath seal_data in
   output_static ~dir:exec_dir "dispatch.ml";
   output_static ~dir:exec_dir "config.ml";
-  copy_file (seal_keys / "server.pem") ~dst:tls_dir;
-  copy_file (seal_keys / "server.key") ~dst:tls_dir;
+  let () = match no_tls, seal_keys with
+    | true , None   -> ()
+    | false, None   -> err "Need either --no-tls or -k <path-to-secrets>"
+    | true , Some d -> err "You cannot use -k and --no-tls simultaneously"
+    | false, Some d ->
+      copy_file (d / "server.pem") ~dst:tls_dir;
+      copy_file (d / "server.key") ~dst:tls_dir;
+  in
+  let keys = match seal_keys with
+    | None   -> ["HTTPS", "0"]
+    | Some _ -> ["HTTPS", "1"; "KEYS", exec_dir / "keys"]
+  in
   mirage_configure ~dir:exec_dir ~mode ([
       "DATA", seal_data;
-      "KEYS", exec_dir / "keys";
       "DHCP", string_of_bool dhcp;
-    ] @ ip_address @ ip_netmask @ ip_gateway @ net);
+    ] @ ip_address @ ip_netmask @ ip_gateway @ net @ keys);
   cmd "cd %s && make" exec_dir;
   if mode = `Xen && not (Sys.file_exists "seal.xl") then
     output_static ~dir:(Sys.getcwd ()) "seal.xl";
@@ -189,7 +205,8 @@ let cmd =
     `P "Check bug reports at https://github.com/samoht/mirage-seal/issues.";
   ] in
   Term.(pure seal $ verbose $ data $ keys $ mode
-        $ ip_address $ ip_netmask $ ip_gateway $ sockets),
+        $ ip_address $ ip_netmask $ ip_gateway $ sockets
+        $ no_tls),
   Term.info "mirage-seal" ~version:Version.current ~doc ~man
 
 let () = match Term.eval cmd with `Error _ -> exit 1 | _ -> exit 0

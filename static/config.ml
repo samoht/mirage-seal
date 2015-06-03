@@ -1,6 +1,12 @@
 open Mirage
 
-let err fmt = Printf.kprintf failwith fmt
+let red fmt = Printf.sprintf ("\027[31m"^^fmt^^"\027[m")
+let red_s = red "%s"
+let err fmt =
+  Printf.kprintf (fun str ->
+      Printf.eprintf "%s %s\n%!" (red_s "[ERROR] ") str;
+      exit 1
+    ) fmt
 
 let get ?default name f =
   let name = "SEAL_" ^ name in
@@ -9,6 +15,10 @@ let get ?default name f =
     match default with
     | None   -> err "%s is not set" name
     | Some d -> d
+
+let bool_of_env = function
+  | "" | "0" | "false" -> false
+  | _  -> true
 
 (* Network configuration *)
 
@@ -21,8 +31,7 @@ let address = { address; netmask; gateways = [gateway] }
 let net =
   get "NET" ~default:`Direct  (function "socket" -> `Socket | _ -> `Direct)
 
-let dhcp =
-  get "DHCP" ~default:true (function "0" | "false" -> false | _  -> true)
+let dhcp = get "DHCP" ~default:true bool_of_env
 
 let stack =
   match net, dhcp with
@@ -37,8 +46,9 @@ let data =
       if Sys.file_exists dir && Sys.is_directory dir then dir
       else err "%s is not a valid directory." dir
     )
+  |> crunch
 
-let keys =
+let keys () =
   get "KEYS" (fun dir ->
       let pem = Filename.concat dir "tls/server.pem" in
       let key = Filename.concat dir "tls/server.key" in
@@ -46,26 +56,38 @@ let keys =
       if file_exists pem && file_exists key then dir
       else err "Cannot find %s/tls/server.{pem,key}." dir
     )
+  |> crunch
 
-let data = crunch data
-let keys = crunch keys
+let with_https = get "HTTPS" ~default:false bool_of_env
 
 (* main app *)
 
-let main =
-  foreign "Dispatch.Main"
+let https =
+  foreign "Dispatch.HTTPS"
     (console @-> stackv4 @-> kv_ro @-> kv_ro @-> clock @-> job)
 
+let http =
+  foreign "Dispatch.HTTP"
+    (console @-> stackv4 @-> kv_ro @-> clock @-> job)
+
 let () =
-  let ocamlfind = ["re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"; "magic-mime"] in
+  let ocamlfind = [
+    "re.str"; "uri"; "tls"; "tls.mirage"; "mirage-http"; "magic-mime"
+  ] in
   let opam = ["re"; "uri"; "tls"; "mirage-http"; "magic-mime"] in
   add_to_ocamlfind_libraries ocamlfind;
   add_to_opam_packages opam;
   register "seal" [
-    main
-    $ default_console
-    $ stack
-    $ data
-    $ keys
-    $ default_clock
+    match with_https with
+    | true  -> https
+               $ default_console
+               $ stack
+               $ data
+               $ keys ()
+               $ default_clock
+    | false -> http
+               $ default_console
+               $ stack
+               $ data
+               $ default_clock
   ]

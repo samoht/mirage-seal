@@ -3,4 +3,7 @@ sudo: required
 install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
 script: bash -ex .travis-opam.sh
 env:
-  - OCAML_VERSION=latest EXTRA_REMOTES=https://github.com/mirage/mirage-dev.git
+  - OCAML_VERSION=latest PACKAGE=mirage-seal
+    EXTRA_REMOTES=https://github.com/mirage/mirage-dev.git
+    UPDATE_GCC_BINUTILS=1
+    POST_INSTALL_HOOK="./test.sh"
