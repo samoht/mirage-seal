@@ -49,7 +49,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
 
   let with_http c kv flow =
     let callback (_, cid) request body =
-      let uri = S.Request.uri request in
+      let uri = Cohttp.Request.uri request in
       let cid = Cohttp.Connection.to_string cid in
       log c "[%s] serving %s." cid (Uri.to_string uri);
       dispatcher kv (split_path uri)
