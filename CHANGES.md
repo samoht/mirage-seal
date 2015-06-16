@@ -1,3 +1,7 @@
+### 0.3.1 (2015-06-16)
+
+* increase default memory to 32MB from 16 (#11, by @yomimono)
+
 ### 0.3.0 (2015-06-12)
 
 * Add a `--no-tls` option to not use TLS to serve static files over HTTP only.
