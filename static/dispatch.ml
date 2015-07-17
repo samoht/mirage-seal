@@ -3,16 +3,6 @@ open V1_LWT
 
 let (>>=) = Lwt.bind
 
-(* Split a URI into a list of path segments *)
-let split_path uri =
-  let path = Uri.path uri in
-  let rec aux = function
-    | [] | [""] -> []
-    | hd::tl -> hd :: aux tl
-  in
-  List.filter (fun e -> e <> "")
-    (aux (Re_str.(split_delim (regexp_string "/") path)))
-
 (* HTTP handler *)
 module type HTTP = sig
   include Cohttp_lwt.Server
@@ -32,14 +22,12 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
       | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
 
-  (* dispatch non-file URLs *)
-  let rec dispatcher fs = function
-    | [] | [""] -> dispatcher fs ["index.html"]
-    | segments ->
-      let path = String.concat "/" segments in
+  (* dispatch files *)
+  let rec dispatcher fs uri = match Uri.path uri with
+    | "" | "/" -> dispatcher fs (Uri.with_path uri "index.html")
+    | path ->
       let mimetype = Magic_mime.lookup path in
-      let headers = Cohttp.Header.init () in
-      let headers = Cohttp.Header.add headers "content-type" mimetype in
+      let headers = Cohttp.Header.init_with "content-type" mimetype in
       Lwt.catch
         (fun () ->
            read_fs fs path >>= fun body ->
@@ -47,12 +35,20 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
         (fun exn ->
            S.respond_not_found ())
 
-  let with_http c kv flow =
+  (* Redirect to the same address, but in https. *)
+  let redirect uri =
+    let new_uri = Uri.with_scheme uri (Some "https") in
+    let headers =
+      Cohttp.Header.init_with "location" (Uri.to_string new_uri)
+    in
+    S.respond ~headers ~status:`Moved_permanently ~body:`Empty ()
+
+  let serve c flow f =
     let callback (_, cid) request body =
       let uri = Cohttp.Request.uri request in
       let cid = Cohttp.Connection.to_string cid in
       log c "[%s] serving %s." cid (Uri.to_string uri);
-      dispatcher kv (split_path uri)
+      f uri
     in
     let conn_closed (_,cid) =
       let cid = Cohttp.Connection.to_string cid in
@@ -74,8 +70,8 @@ struct
   module Dispatch = Dispatch(C)(DATA)(Http)
 
   let start c stack data _clock =
-    let serve flow = Dispatch.with_http c data flow in
-    S.listen_tcpv4 stack ~port:80 serve;
+    let http flow = Dispatch.serve c flow (Dispatch.dispatcher data) in
+    S.listen_tcpv4 stack ~port:80 http;
     S.listen stack
 
 end
@@ -91,8 +87,11 @@ struct
   module TLS  = Tls_mirage.Make (TCP)
   module X509 = Tls_mirage.X509 (KEYS) (Clock)
 
-  module Http     = Cohttp_mirage.Server(TLS)
-  module Dispatch = Dispatch(C)(DATA)(Http)
+  module Http  = Cohttp_mirage.Server(TCP)
+  module Https = Cohttp_mirage.Server(TLS)
+
+  module Dispatch_http  = Dispatch(C)(DATA)(Http)
+  module Dispatch_https = Dispatch(C)(DATA)(Https)
 
   let log c fmt = Printf.ksprintf (C.log c) fmt
 
@@ -112,8 +111,10 @@ struct
 
   let start c stack data keys _clock =
     tls_init keys >>= fun cfg ->
-    let serve flow = with_tls c cfg flow ~f:(Dispatch.with_http c data) in
-    S.listen_tcpv4 stack ~port:443 serve;
+    let https flow = Dispatch_https.serve c flow (Dispatch_https.dispatcher data) in
+    let http  flow = Dispatch_http.serve  c flow Dispatch_http.redirect in
+    S.listen_tcpv4 stack ~port:443 (with_tls c cfg ~f:https);
+    S.listen_tcpv4 stack ~port:80  http;
     S.listen stack
 
 end
