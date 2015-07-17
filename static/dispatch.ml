@@ -3,16 +3,6 @@ open V1_LWT
 
 let (>>=) = Lwt.bind
 
-(* Split a URI into a list of path segments *)
-let split_path uri =
-  let path = Uri.path uri in
-  let rec aux = function
-    | [] | [""] -> []
-    | hd::tl -> hd :: aux tl
-  in
-  List.filter (fun e -> e <> "")
-    (aux (Re_str.(split_delim (regexp_string "/") path)))
-
 (* HTTP handler *)
 module type HTTP = sig
   include Cohttp_lwt.Server
@@ -32,14 +22,12 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
       | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
 
-  (* dispatch non-file URLs *)
-  let rec dispatcher fs = function
-    | [] | [""] -> dispatcher fs ["index.html"]
-    | segments ->
-      let path = String.concat "/" segments in
+  (* dispatch files *)
+  let rec dispatcher fs uri = match Uri.path uri with
+    | "" | "/" -> dispatcher fs (Uri.with_path uri "index.html")
+    | path ->
       let mimetype = Magic_mime.lookup path in
-      let headers = Cohttp.Header.init () in
-      let headers = Cohttp.Header.add headers "content-type" mimetype in
+      let headers = Cohttp.Header.init_with "content-type" mimetype in
       Lwt.catch
         (fun () ->
            read_fs fs path >>= fun body ->
