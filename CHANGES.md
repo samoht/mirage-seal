@@ -1,3 +1,8 @@
+### 0.4.0
+
+* Add redirection from HTTP to HTTPS (#5, #14 by @Drup)
+* Add a Dockerfile
+
 ### 0.3.1 (2015-06-16)
 
 * increase default memory to 32MB from 16 (#11, by @yomimono)
