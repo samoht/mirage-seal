@@ -23,16 +23,11 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
 
   (* dispatch files *)
-  let rec dispatcher fs ?headers uri = match Uri.path uri with
-    | "" | "/" -> dispatcher fs ?headers (Uri.with_path uri "index.html")
+  let rec dispatcher fs ?header uri = match Uri.path uri with
+    | "" | "/" -> dispatcher fs ?header (Uri.with_path uri "index.html")
     | path ->
       let mimetype = Magic_mime.lookup path in
-      let headers =
-        let hdr = Cohttp.Header.init_with "content-type" mimetype in
-        match headers with
-        | None -> hdr
-        | Some hdrs -> Cohttp.Header.add_list hdr hdrs
-      in
+      let headers = Cohttp.Header.add_opt header "content-type" mimetype in
       Lwt.catch
         (fun () ->
            read_fs fs path >>= fun body ->
@@ -117,8 +112,8 @@ struct
   let start c stack data keys _clock =
     tls_init keys >>= fun cfg ->
     (* 31536000 seconds is roughly a year *)
-    let headers = [("Strict-Transport-Security", "max-age=31536000")] in
-    let https flow = Dispatch_https.serve c flow (Dispatch_https.dispatcher ~headers data) in
+    let header = Cohttp.Header.init_with "Strict-Transport-Security" "max-age=31536000" in
+    let https flow = Dispatch_https.serve c flow (Dispatch_https.dispatcher ~header data) in
     let http  flow = Dispatch_http.serve  c flow Dispatch_http.redirect in
     S.listen_tcpv4 stack ~port:443 (with_tls c cfg ~f:https);
     S.listen_tcpv4 stack ~port:80  http;
