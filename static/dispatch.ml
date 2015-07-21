@@ -23,11 +23,11 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
 
   (* dispatch files *)
-  let rec dispatcher fs uri = match Uri.path uri with
-    | "" | "/" -> dispatcher fs (Uri.with_path uri "index.html")
+  let rec dispatcher fs ?header uri = match Uri.path uri with
+    | "" | "/" -> dispatcher fs ?header (Uri.with_path uri "index.html")
     | path ->
       let mimetype = Magic_mime.lookup path in
-      let headers = Cohttp.Header.init_with "content-type" mimetype in
+      let headers = Cohttp.Header.add_opt header "content-type" mimetype in
       Lwt.catch
         (fun () ->
            read_fs fs path >>= fun body ->
@@ -101,7 +101,7 @@ struct
     let with_tls_server k = TLS.server_of_flow cfg tcp >>= k in
     with_tls_server @@ function
     | `Error _ -> log "TLS failed"; TCP.close tcp
-    | `Ok tls  -> log "TLS ok"; f tls >>= fun () ->TLS.close tls
+    | `Ok tls  -> log "TLS ok"; f tls >>= fun () -> TLS.close tls
     | `Eof     -> log "TLS eof"; TCP.close tcp
 
   let tls_init kv =
@@ -111,7 +111,9 @@ struct
 
   let start c stack data keys _clock =
     tls_init keys >>= fun cfg ->
-    let https flow = Dispatch_https.serve c flow (Dispatch_https.dispatcher data) in
+    (* 31536000 seconds is roughly a year *)
+    let header = Cohttp.Header.init_with "Strict-Transport-Security" "max-age=31536000" in
+    let https flow = Dispatch_https.serve c flow (Dispatch_https.dispatcher ~header data) in
     let http  flow = Dispatch_http.serve  c flow Dispatch_http.redirect in
     S.listen_tcpv4 stack ~port:443 (with_tls c cfg ~f:https);
     S.listen_tcpv4 stack ~port:80  http;
