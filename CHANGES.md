@@ -1,4 +1,8 @@
-### 0.4.0
+### 0.4.1 (2015-07-21)
+
+* When serving https, send a HSTS header (#5, #16 by @hannesm)
+
+### 0.4.0 (2015-07-17)
 
 * Add redirection from HTTP to HTTPS (#5, #14 by @Drup)
 * Add a Dockerfile
