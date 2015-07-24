@@ -8,13 +8,17 @@ let err fmt =
       exit 1
     ) fmt
 
-let get ?default name f =
+let get ?default ?(lower=true) name f =
   let name = "SEAL_" ^ name in
-  try Unix.getenv name |> String.lowercase |> f
+  let normalize = if lower then String.lowercase else (fun x -> x) in
+  try Unix.getenv name |> normalize |> f
   with Not_found ->
     match default with
     | None   -> err "%s is not set" name
     | Some d -> d
+
+let get_path ?default name f =
+  get ?default ~lower:false name f
 
 let bool_of_env = function
   | "" | "0" | "false" -> false
@@ -42,14 +46,14 @@ let stack =
 (* storage configuration *)
 
 let data =
-  get "DATA" (fun dir ->
+  get_path "DATA" (fun dir ->
       if Sys.file_exists dir && Sys.is_directory dir then dir
       else err "%s is not a valid directory." dir
     )
   |> crunch
 
 let keys () =
-  get "KEYS" (fun dir ->
+  get_path "KEYS" (fun dir ->
       let pem = Filename.concat dir "tls/server.pem" in
       let key = Filename.concat dir "tls/server.key" in
       let file_exists f = Sys.file_exists f && not (Sys.is_directory f) in
