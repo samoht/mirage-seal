@@ -1,3 +1,7 @@
+### 0.4.2 (2015-07-28)
+
+* preserve case for data and keys dirs (#18, by @lnmx)
+
 ### 0.4.1 (2015-07-21)
 
 * When serving https, send a HSTS header (#5, #16 by @hannesm)
