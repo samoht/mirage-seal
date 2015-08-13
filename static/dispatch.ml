@@ -17,7 +17,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
     let name = FS.stat fs name >>= function   
       | `Ok {FS.directory = true} -> Lwt.return @@ name ^ "/index.html" 
       | `Ok {FS.directory = false} -> Lwt.return @@ name
-      | `Error (FS.Unknown_key _) -> Lwt.fail (Failure (name ^ " stat failure") 
+      | `Error (FS.Unknown_key _) -> Lwt.fail (Failure (name ^ " stat failure")) 
     in    
     name >>= FS.size fs name >>= function
     | `Error (FS.Unknown_key _) ->
