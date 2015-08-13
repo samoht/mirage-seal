@@ -14,18 +14,14 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
   let log c fmt = Printf.ksprintf (C.log c) fmt
 
   let read_fs fs name =
-    let name = FS.stat fs name >>= function   
-      | `Ok {FS.directory = true} -> Lwt.return @@ name ^ "/index.html" 
-      | `Ok {FS.directory = false} -> Lwt.return @@ name
-      | `Error (FS.Unknown_key _) -> Lwt.fail (Failure (name ^ " stat failure")) 
-    in    
-    name >>= FS.size fs name >>= function
-    | `Error (FS.Unknown_key _) ->
-      Lwt.fail (Failure ("read " ^ name))
-    | `Ok size ->
-      FS.read fs name 0 (Int64.to_int size) >>= function
-      | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
-      | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
+    let find_file f_name = FS.size fs f_name >>= function
+      | `Error (FS.Unknown_key _) ->
+        `Lwt.fail (Failure ("read " ^ name))
+      | `Ok size ->
+         FS.read fs name 0 (Int64.to_int size) >>= function
+        | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
+        | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
+    in Lwt.nchoose (find_file name) (find_file (name ^ "/index.html")) 
 
   (* dispatch files *)
   let dispatcher fs ?header uri = 
