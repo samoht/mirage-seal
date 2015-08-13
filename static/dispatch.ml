@@ -14,7 +14,12 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
   let log c fmt = Printf.ksprintf (C.log c) fmt
 
   let read_fs fs name =
-    FS.size fs name >>= function
+    let name = FS.stat fs name >>= function   
+      | `Ok {FS.directory = true} -> Lwt.return @@ name ^ "/index.html" 
+      | `Ok {FS.directory = false} -> Lwt.return @@ name
+      | `Error (FS.Unknown_key _) -> Lwt.fail (Failure (name ^ " stat failure") 
+    in    
+    name >>= FS.size fs name >>= function
     | `Error (FS.Unknown_key _) ->
       Lwt.fail (Failure ("read " ^ name))
     | `Ok size ->
@@ -23,17 +28,17 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
 
   (* dispatch files *)
-  let rec dispatcher fs ?header uri = match Uri.path uri with
-    | "" | "/" -> dispatcher fs ?header (Uri.with_path uri "index.html")
-    | path ->
-      let mimetype = Magic_mime.lookup path in
-      let headers = Cohttp.Header.add_opt header "content-type" mimetype in
-      Lwt.catch
-        (fun () ->
-           read_fs fs path >>= fun body ->
-           S.respond_string ~status:`OK ~body ~headers ())
-        (fun exn ->
-           S.respond_not_found ())
+  let dispatcher fs ?header uri = 
+    path = ListLabels.fold_left ~f:(fun a -> function "" -> a | b -> a ^ "/" ^ b) ~init:"" 
+        (Re_str.bounded_split (Re_str.regexp "/") @@ Uri.path uri) in 
+    let mimetype = Magic_mime.lookup path in
+    let headers = Cohttp.Header.add_opt header "content-type" mimetype in
+    Lwt.catch
+      (fun () ->
+         read_fs fs path >>= fun body ->
+         S.respond_string ~status:`OK ~body ~headers ())
+      (fun exn ->
+         S.respond_not_found ())
 
   (* Redirect to the same address, but in https. *)
   let redirect uri =
