@@ -24,18 +24,17 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
     in Lwt.choose [(find_file (name ^ "/index.html")); (find_file (name ^ "/index.html"))] 
 
   (* dispatch files *)
-  let dispatcher fs ?header uri c = 
+  let dispatcher fs ?header uri = 
     let path = ListLabels.fold_left ~f:(fun a -> function "" -> a | b -> a ^ "/" ^ b) ~init:"" 
         (Re_str.bounded_split (Re_str.regexp "/") (Uri.path uri) 0) in 
     let mimetype = Magic_mime.lookup path in
     let headers = Cohttp.Header.add_opt header "content-type" mimetype in
-    log c "Path: [%s]" path; 
     Lwt.catch
       (fun () ->
         read_fs fs path >>= fun body ->
          S.respond_string ~status:`OK ~body ~headers ())
       (fun exn ->
-         S.respond_not_found ())
+         S.respond_string ~status:`OK path ~headers ())
 
   (* Redirect to the same address, but in https. *)
   let redirect uri =
@@ -50,7 +49,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       let uri = Cohttp.Request.uri request in
       let cid = Cohttp.Connection.to_string cid in
       log c "[%s] serving %s." cid (Uri.to_string uri);
-      f uri c
+      f uri 
     in
     let conn_closed (_,cid) =
       let cid = Cohttp.Connection.to_string cid in
@@ -116,7 +115,7 @@ struct
     (* 31536000 seconds is roughly a year *)
     let header = Cohttp.Header.init_with "Strict-Transport-Security" "max-age=31536000" in
     let https flow = Dispatch_https.serve c flow (Dispatch_https.dispatcher ~header data ) in
-    let http  flow = Dispatch_http.serve  c flow (Dispatch_http.redirect c) in
+    let http  flow = Dispatch_http.serve  c flow Dispatch_http.redirect in
     S.listen_tcpv4 stack ~port:443 (with_tls c cfg ~f:https);
     S.listen_tcpv4 stack ~port:80  http;
     S.listen stack
