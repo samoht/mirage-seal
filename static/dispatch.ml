@@ -16,7 +16,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
   let read_fs fs name =
     let find_file f_name = FS.size fs f_name >>= function
       | `Error (FS.Unknown_key _) ->
-        Lwt.fail (Failure ("read " ^ name))
+        log "Failure: " ^ f_name; Lwt.fail (Failure ("read " ^ name))
       | `Ok size ->
         FS.read fs name 0 (Int64.to_int size) >>= function
         | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
