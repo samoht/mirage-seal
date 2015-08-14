@@ -14,33 +14,26 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
   let log c fmt = Printf.ksprintf (C.log c) fmt
 
   let read_fs fs name =
-    FS.size fs name >>= function
-    | `Error (FS.Unknown_key _) ->
-       Lwt.fail (Failure ("read " ^ name))
-    | `Ok size ->
-      FS.read fs name 0 (Int64.to_int size) >>= function
-      | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
-      | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
+    let find_file f_name = FS.size fs f_name >>= function
+      | `Error (FS.Unknown_key _) ->
+        Lwt.fail (Failure ("read " ^ f_name))
+      | `Ok size ->
+        FS.read fs f_name 0 (Int64.to_int size) >>= function
+        | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ f_name))
+        | `Ok bufs -> Lwt.return ((Magic_mime.lookup f_name), (Cstruct.copyv bufs))
+    in Lwt.choose [(find_file (name)); (find_file (name ^ "/index.html"))] 
 
   (* dispatch files *)
   let dispatcher fs ?header uri = 
     let path = ListLabels.fold_left ~f:(fun a -> function "" -> a | b -> a ^ "/" ^ b) ~init:"" 
         (Re_str.bounded_split (Re_str.regexp "/") (Uri.path uri) 0) in 
-    let mimetype = match Magic_mime.lookup path with
-      | "application/octet-stream" -> Magic_mime.lookup (path ^ "/index.html")
-      | mime -> mime 
-    in 
-    let headers = Cohttp.Header.add_opt header "content-type" mimetype in
     Lwt.catch
       (fun () ->
-        read_fs fs path >>= fun body ->
+        read_fs fs path >>= fun mimetype, body ->
+         let headers = Cohttp.Header.add_opt header "content-type" mimetype in
          S.respond_string ~status:`OK ~body ~headers ())
       (fun exn ->
-         Lwt.catch 
-           (fun () -> read_fs fs (path ^ "/index.html") >>= fun body -> 
-             S.respond_string ~status:`OK ~body ~headers ())
-           (fun exn -> S.respond_string ~status:`OK ~body:path ~headers ())
-      )
+         S.respond_not_found ())
 
   (* Redirect to the same address, but in https. *)
   let redirect uri =
