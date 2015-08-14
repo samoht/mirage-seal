@@ -32,7 +32,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
     Lwt.catch
       (fun () ->
         read_fs fs path >>= fun body ->
-         S.respond_string ~status:`OK ~body ~headers ())
+         S.respond_string ~status:`OK ~body:path ~headers ())
       (fun exn ->
          S.respond_string ~status:`OK ~body:path ~headers ())
 
