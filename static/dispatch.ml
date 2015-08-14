@@ -16,7 +16,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
   let read_fs fs name =
     let find_file f_name = FS.size fs f_name >>= function
       | `Error (FS.Unknown_key _) ->
-        log "Failure: " ^ f_name; Lwt.fail (Failure ("read " ^ name))
+        Lwt.fail (Failure ("read " ^ name))
       | `Ok size ->
         FS.read fs name 0 (Int64.to_int size) >>= function
         | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
@@ -24,14 +24,15 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
     in Lwt.choose [(find_file (name ^ "/index.html")); (find_file (name ^ "/index.html"))] 
 
   (* dispatch files *)
-  let dispatcher fs ?header uri = 
+  let dispatcher fs ?header uri c = 
     let path = ListLabels.fold_left ~f:(fun a -> function "" -> a | b -> a ^ "/" ^ b) ~init:"" 
         (Re_str.bounded_split (Re_str.regexp "/") (Uri.path uri) 0) in 
     let mimetype = Magic_mime.lookup path in
     let headers = Cohttp.Header.add_opt header "content-type" mimetype in
+    log c "Path: [%s]" path; 
     Lwt.catch
       (fun () ->
-         read_fs fs path >>= fun body ->
+        read_fs fs path >>= fun body ->
          S.respond_string ~status:`OK ~body ~headers ())
       (fun exn ->
          S.respond_not_found ())
@@ -49,7 +50,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       let uri = Cohttp.Request.uri request in
       let cid = Cohttp.Connection.to_string cid in
       log c "[%s] serving %s." cid (Uri.to_string uri);
-      f uri
+      f uri c
     in
     let conn_closed (_,cid) =
       let cid = Cohttp.Connection.to_string cid in
