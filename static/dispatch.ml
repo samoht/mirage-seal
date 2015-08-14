@@ -27,12 +27,14 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
   let dispatcher fs ?header uri = 
     let path = ListLabels.fold_left ~f:(fun a -> function "" -> a | b -> a ^ "/" ^ b) ~init:"" 
         (Re_str.bounded_split (Re_str.regexp "/") (Uri.path uri) 0) in 
-    let mimetype = Magic_mime.lookup path in
+    let mimetype = match Magic_mime.lookup path with
+      | "application/octet-stream" -> Magic_mime.lookup (path ^ "/index.html")
+      | mime -> mime 
     let headers = Cohttp.Header.add_opt header "content-type" mimetype in
     Lwt.catch
       (fun () ->
         read_fs fs path >>= fun body ->
-         S.respond_string ~status:`OK ~body:path ~headers ())
+         S.respond_string ~status:`OK ~body ~headers ())
       (fun exn ->
          S.respond_string ~status:`OK ~body:path ~headers ())
 
