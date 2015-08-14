@@ -21,7 +21,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
         FS.read fs name 0 (Int64.to_int size) >>= function
         | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
         | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
-    in Lwt.nchoose (find_file name) (find_file (name ^ "/index.html")) 
+    in Lwt.choose [(find_file name); (find_file (name ^ "/index.html"))] 
 
   (* dispatch files *)
   let dispatcher fs ?header uri = 
