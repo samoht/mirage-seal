@@ -116,7 +116,7 @@ struct
     (* 31536000 seconds is roughly a year *)
     let header = Cohttp.Header.init_with "Strict-Transport-Security" "max-age=31536000" in
     let https flow = Dispatch_https.serve c flow (Dispatch_https.dispatcher ~header data ) in
-    let http  flow = Dispatch_http.serve  c flow Dispatch_http.redirect in
+    let http  flow = Dispatch_http.serve  c flow Dispatch_http.redirect c in
     S.listen_tcpv4 stack ~port:443 (with_tls c cfg ~f:https);
     S.listen_tcpv4 stack ~port:80  http;
     S.listen stack
