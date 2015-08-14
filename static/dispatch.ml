@@ -30,10 +30,9 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
     Lwt.catch
       (fun () ->
         read_fs fs path >>= fun (mimetype, body) ->
-         let headers = Cohttp.Header.add_opt header "content-type" mimetype in
-         S.respond_string ~status:`OK ~body ~headers ())
-      (fun exn ->
-         S.respond_not_found ())
+          let headers = Cohttp.Header.add_opt header "content-type" mimetype in
+          S.respond_string ~status:`OK ~body ~headers ())
+      (fun exn -> S.respond_not_found ())
 
   (* Redirect to the same address, but in https. *)
   let redirect uri =
