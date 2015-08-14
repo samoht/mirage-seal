@@ -14,7 +14,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
   let log c fmt = Printf.ksprintf (C.log c) fmt
 
   let read_fs fs name =
-    FS.size fs f_name >>= function
+    FS.size fs name >>= function
     | `Error (FS.Unknown_key _) ->
        Lwt.fail (Failure ("read " ^ name))
     | `Ok size ->
