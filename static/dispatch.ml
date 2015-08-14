@@ -30,6 +30,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
     let mimetype = match Magic_mime.lookup path with
       | "application/octet-stream" -> Magic_mime.lookup (path ^ "/index.html")
       | mime -> mime 
+    in 
     let headers = Cohttp.Header.add_opt header "content-type" mimetype in
     Lwt.catch
       (fun () ->
