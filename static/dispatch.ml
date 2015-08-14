@@ -29,7 +29,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
         (Re_str.bounded_split (Re_str.regexp "/") (Uri.path uri) 0) in 
     Lwt.catch
       (fun () ->
-        read_fs fs path >>= fun mimetype, body ->
+        read_fs fs path >>= fun (mimetype, body) ->
          let headers = Cohttp.Header.add_opt header "content-type" mimetype in
          S.respond_string ~status:`OK ~body ~headers ())
       (fun exn ->
