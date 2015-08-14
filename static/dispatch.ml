@@ -34,7 +34,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
         read_fs fs path >>= fun body ->
          S.respond_string ~status:`OK ~body ~headers ())
       (fun exn ->
-         S.respond_string ~status:`OK path ~headers ())
+         S.respond_string ~status:`OK ~body:path ~headers ())
 
   (* Redirect to the same address, but in https. *)
   let redirect uri =
