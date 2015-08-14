@@ -14,14 +14,13 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
   let log c fmt = Printf.ksprintf (C.log c) fmt
 
   let read_fs fs name =
-    let find_file f_name = FS.size fs f_name >>= function
-      | `Error (FS.Unknown_key _) ->
-        Lwt.fail (Failure ("read " ^ name))
-      | `Ok size ->
-        FS.read fs name 0 (Int64.to_int size) >>= function
-        | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
-        | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
-    in Lwt.choose [(find_file (name)); (find_file (name ^ "/index.html"))] 
+    FS.size fs f_name >>= function
+    | `Error (FS.Unknown_key _) ->
+       Lwt.fail (Failure ("read " ^ name))
+    | `Ok size ->
+      FS.read fs name 0 (Int64.to_int size) >>= function
+      | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
+      | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
 
   (* dispatch files *)
   let dispatcher fs ?header uri = 
@@ -37,7 +36,11 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
         read_fs fs path >>= fun body ->
          S.respond_string ~status:`OK ~body ~headers ())
       (fun exn ->
-         S.respond_string ~status:`OK ~body:path ~headers ())
+         Lwt.catch 
+           (fun () -> read_fs fs (path ^ "/index.html") >>= fun body -> 
+             S.respond_string ~status:`OK ~body ~headers ())
+           (fun exn -> S.respond_string ~status:`OK ~body:path ~headers ())
+      )
 
   (* Redirect to the same address, but in https. *)
   let redirect uri =
