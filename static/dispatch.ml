@@ -14,27 +14,33 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
   let log c fmt = Printf.ksprintf (C.log c) fmt
 
   let read_fs fs name =
-    let find_file f_name = FS.size fs f_name >>= function
+    FS.size fs name >>= function
       | `Error (FS.Unknown_key _) ->
-        Lwt.fail (Failure ("read " ^ f_name))
+        Lwt.fail (Failure ("read " ^ name))
       | `Ok size ->
-        FS.read fs f_name 0 (Int64.to_int size) >>= function
-        | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ f_name))
+        FS.read fs name 0 (Int64.to_int size) >>= function
+        | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
         | `Ok bufs -> Lwt.return ((Magic_mime.lookup f_name), (Cstruct.copyv bufs))
-    in Lwt.catch 
-        (fun () -> find_file (name)) 
-        (fun exn -> find_file (name ^ "/index.html")) 
 
   (* dispatch files *)
   let dispatcher fs ?header uri = 
-    let path = ListLabels.fold_left ~f:(fun a -> function "" -> a | b -> a ^ "/" ^ b) ~init:"" 
-        (Re_str.bounded_split (Re_str.regexp "/") (Uri.path uri) 0) in 
+    let path = 
+      let p = Uri.path uri in 
+      match p.[ (String.length p) - 1 ] with  
+      | '/' ->  p ^ "index.html"
+      | _ -> p 
+    in 
+    let read_fs_path fs path = 
+      read_fs fs path >>= fun (mimetype, body) ->
+        let headers = Cohttp.Header.add_opt header "content-type" mimetype in
+        S.respond_string ~status:`OK ~body ~headers ()
+    in 
     Lwt.catch
-      (fun () ->
-        read_fs fs path >>= fun (mimetype, body) ->
-          let headers = Cohttp.Header.add_opt header "content-type" mimetype in
-          S.respond_string ~status:`OK ~body ~headers ())
-      (fun exn -> S.respond_not_found ())
+      (fun () -> read_fs_path fs path) 
+      (fun exn ->  
+        Lwt.catch 
+        (fun () -> read_fs_path fs path) 
+        (fun exn -> S.respond_not_found ()))
 
   (* Redirect to the same address, but in https. *)
   let redirect uri =

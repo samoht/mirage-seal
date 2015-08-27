@@ -76,9 +76,9 @@ let http =
 
 let () =
   let ocamlfind = [
-    "uri"; "tls"; "tls.mirage"; "mirage-http"; "magic-mime"; "re.str"
+    "uri"; "tls"; "tls.mirage"; "mirage-http"; "magic-mime"
   ] in
-  let opam = ["uri"; "tls"; "mirage-http"; "magic-mime"; "re"] in
+  let opam = ["uri"; "tls"; "mirage-http"; "magic-mime"] in
   add_to_ocamlfind_libraries ocamlfind;
   add_to_opam_packages opam;
   register "seal" [
