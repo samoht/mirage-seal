@@ -39,7 +39,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       (fun () -> read_fs_path fs path) 
       (fun exn ->  
         Lwt.catch 
-        (fun () -> read_fs_path fs (path ^ "/index.html") 
+        (fun () -> read_fs_path fs (path ^ "/index.html"))
         (fun exn -> S.respond_not_found ()))
 
   (* Redirect to the same address, but in https. *)
