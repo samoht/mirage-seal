@@ -20,7 +20,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       | `Ok size ->
         FS.read fs name 0 (Int64.to_int size) >>= function
         | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
-        | `Ok bufs -> Lwt.return ((Magic_mime.lookup f_name), (Cstruct.copyv bufs))
+        | `Ok bufs -> Lwt.return ((Magic_mime.lookup name), (Cstruct.copyv bufs))
 
   (* dispatch files *)
   let dispatcher fs ?header uri = 
