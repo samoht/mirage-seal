@@ -168,7 +168,7 @@ let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway
       let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
       rmdir exec_dir;
       mkdir exec_dir;
-
+      printf "exec-dir: %s\n%!" exec_dir;
       let seal_data = realpath seal_data in
       output_static ~dir:exec_dir "dispatch-dns.ml";
       output_static ~dir:exec_dir "config-dns.ml";
@@ -180,20 +180,19 @@ let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway
           "DHCP", string_of_bool dhcp;
         ] @ ip_address @ ip_netmask @ ip_gateway @ net @ ["HTTPS", "0"]);
 
-      cmd
-        "cd %s && make" exec_dir;
+      cmd "cd %s && make" exec_dir;
       if mode = `Xen && not (Sys.file_exists "seal-dns.xl") then
         output_static ~dir:(Sys.getcwd ()) "seal-dns.xl";
       let exec_file = match mode with
-        | `Unix | `MacOSX -> exec_dir / "mir-seal"
-        | `Xen -> exec_dir / "mir-seal.xen"
+        | `Unix | `MacOSX -> exec_dir / "mir-seal-dns"
+        | `Xen -> exec_dir / "mir-seal-dns.xen"
       in
       copy_file exec_file ~dst:(Sys.getcwd ());
       match mode with
       | `Unix | `MacOSX ->
-        printf "\n\nTo run your sealed unikernel, use `sudo ./mir-seal`\n\n%!"
+        printf "\n\nTo run your sealed unikernel, use `sudo ./mir-seal-dns`\n\n%!"
       | `Xen ->
-        printf "\n\nTo run your sealed unikernel, use `sudo xl create seal.xl *)
+        printf "\n\nTo run your sealed unikernel, use `sudo xl create seal-dns.xl *)
       (*-c`\n\n%!"
     end
 
