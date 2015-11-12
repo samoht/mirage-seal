@@ -5,7 +5,7 @@ let sp = Printf.sprintf
 
 let (>>=) = Lwt.bind
 
-let listening_port = 5354
+let listening_port = 53
 
 let red fmt    = sp ("\027[31m"^^fmt^^"\027[m")
 let green fmt  = sp ("\027[32m"^^fmt^^"\027[m")
