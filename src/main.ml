@@ -46,6 +46,13 @@ let keys =
   in
   Arg.(value & opt (some string) None & doc)
 
+let dns =
+  let doc =
+    Arg.info ["dns"]
+      ~doc:"Build a DNS server rather than a webserver."
+  in
+  Arg.(value & flag & doc)
+
 let no_tls =
   let doc =
     Arg.info ["no-tls"]
@@ -128,7 +135,7 @@ let mirage_configure ~dir ~mode keys =
   cmd "cd %s && %s mirage configure %s" dir keys mode
 
 let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway
-    sockets no_tls =
+      sockets no_tls dns =
   if verbose then Log.set_log_level Log.DEBUG;
   let mode = match sockets, mode with
     | true, None -> `Unix
@@ -156,44 +163,81 @@ let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway
     | true  -> ["NET", "socket"]
     | false -> []
   in
-  let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
-  let tls_dir = exec_dir / "keys" / "tls" in
-  rmdir exec_dir;
-  mkdir exec_dir;
-  mkdir tls_dir;
-  printf "exec-dir: %s\n%!" exec_dir;
-  let seal_data = realpath seal_data in
-  output_static ~dir:exec_dir "dispatch.ml";
-  output_static ~dir:exec_dir "config.ml";
-  let () = match no_tls, seal_keys with
-    | true , None   -> ()
-    | false, None   -> err "Need either --no-tls or -k <path-to-secrets>"
-    | true , Some d -> err "You cannot use -k and --no-tls simultaneously"
-    | false, Some d ->
-      copy_file (d / "server.pem") ~dst:tls_dir;
-      copy_file (d / "server.key") ~dst:tls_dir;
-  in
-  let keys = match seal_keys with
-    | None   -> ["HTTPS", "0"]
-    | Some _ -> ["HTTPS", "1"; "KEYS", exec_dir / "keys"]
-  in
-  mirage_configure ~dir:exec_dir ~mode ([
-      "DATA", seal_data;
-      "DHCP", string_of_bool dhcp;
-    ] @ ip_address @ ip_netmask @ ip_gateway @ net @ keys);
-  cmd "cd %s && make" exec_dir;
-  if mode = `Xen && not (Sys.file_exists "seal.xl") then
-    output_static ~dir:(Sys.getcwd ()) "seal.xl";
-  let exec_file = match mode with
-    | `Unix | `MacOSX -> exec_dir / "mir-seal"
-    | `Xen -> exec_dir / "mir-seal.xen"
-  in
-  copy_file exec_file ~dst:(Sys.getcwd ());
-  match mode with
-  | `Unix | `MacOSX ->
-    printf "\n\nTo run your sealed unikernel, use `sudo ./mir-seal`\n\n%!"
-  | `Xen ->
-    printf "\n\nTo run your sealed unikernel, use `sudo xl create seal.xl -c`\n\n%!"
+  match dns with
+  | true -> begin
+      let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
+      rmdir exec_dir;
+      mkdir exec_dir;
+      printf "exec-dir: %s\n%!" exec_dir;
+      let seal_data = realpath seal_data in
+      output_static ~dir:exec_dir "dispatch-dns.ml";
+      output_static ~dir:exec_dir "config-dns.ml";
+
+      cmd
+        "cd %s && mv config-dns.ml config.ml && mv dispatch-dns.ml dispatch.ml" exec_dir;
+      mirage_configure ~dir:exec_dir ~mode ([
+          "DATA", seal_data;
+          "DHCP", string_of_bool dhcp;
+        ] @ ip_address @ ip_netmask @ ip_gateway @ net @ ["HTTPS", "0"]);
+
+      cmd "cd %s && make" exec_dir;
+      if mode = `Xen && not (Sys.file_exists "seal-dns.xl") then
+        output_static ~dir:(Sys.getcwd ()) "seal-dns.xl";
+      let exec_file = match mode with
+        | `Unix | `MacOSX -> exec_dir / "mir-seal-dns"
+        | `Xen -> exec_dir / "mir-seal-dns.xen"
+      in
+      copy_file exec_file ~dst:(Sys.getcwd ());
+      match mode with
+      | `Unix | `MacOSX ->
+        printf "\n\nTo run your sealed unikernel, use `sudo ./mir-seal-dns`\n\n%!"
+      | `Xen ->
+        printf "\n\nTo run your sealed unikernel, use `sudo xl create seal-dns.xl *)
+      (*-c`\n\n%!"
+    end
+
+  | false -> begin
+      let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
+      let tls_dir = exec_dir / "keys" / "tls" in
+      rmdir exec_dir;
+      mkdir exec_dir;
+      mkdir tls_dir;
+      printf "exec-dir: %s\n%!" exec_dir;
+      let seal_data = realpath seal_data in
+      output_static ~dir:exec_dir "dispatch.ml";
+      output_static ~dir:exec_dir "config.ml";
+      let () = match no_tls, seal_keys with
+        | true , None   -> ()
+        | false, None   -> err "Need either --no-tls or -k <path-to-secrets>"
+        | true , Some d -> err "You cannot use -k and --no-tls simultaneously"
+        | false, Some d ->
+          copy_file (d / "server.pem") ~dst:tls_dir;
+          copy_file (d / "server.key") ~dst:tls_dir;
+      in
+      let keys = match seal_keys with
+        | None   -> ["HTTPS", "0"]
+        | Some _ -> ["HTTPS", "1"; "KEYS", exec_dir / "keys"]
+      in
+      mirage_configure ~dir:exec_dir ~mode ([
+          "DATA", seal_data;
+          "DHCP", string_of_bool dhcp;
+        ] @ ip_address @ ip_netmask @ ip_gateway @ net @ keys);
+
+      cmd "cd %s && make" exec_dir;
+      if mode = `Xen && not (Sys.file_exists "seal.xl") then
+        output_static ~dir:(Sys.getcwd ()) "seal.xl";
+      let exec_file = match mode with
+        | `Unix | `MacOSX -> exec_dir / "mir-seal"
+        | `Xen -> exec_dir / "mir-seal.xen"
+      in
+      copy_file exec_file ~dst:(Sys.getcwd ());
+      match mode with
+      | `Unix | `MacOSX ->
+        printf "\n\nTo run your sealed unikernel, use `sudo ./mir-seal`\n\n%!"
+      | `Xen ->
+        printf "\n\nTo run your sealed unikernel, use `sudo xl create seal.xl -c`\n\n%!"
+
+    end
 
 let cmd =
   let doc = "Seal a local directory into a Mirage unikernel." in
@@ -206,7 +250,7 @@ let cmd =
   ] in
   Term.(pure seal $ verbose $ data $ keys $ mode
         $ ip_address $ ip_netmask $ ip_gateway $ sockets
-        $ no_tls),
+        $ no_tls $ dns),
   Term.info "mirage-seal" ~version:Version.current ~doc ~man
 
 let () = match Term.eval cmd with `Error _ -> exit 1 | _ -> exit 0

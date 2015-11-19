@@ -2,3 +2,6 @@ src/version.ml
 src/static.ml
 *~
 _build/
+/main.native
+/setup.data
+/setup.log
