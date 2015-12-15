@@ -157,7 +157,7 @@ let seal verbose seal_data seal_keys mode ip_address ip_netmask ip_gateway
     | false -> []
   in
   let exec_dir = Filename.get_temp_dir_name () / "mirage-seal" in
-  let tls_dir = exec_dir / "keys" / "tls" in
+  let tls_dir = exec_dir / "keys" in
   rmdir exec_dir;
   mkdir exec_dir;
   mkdir tls_dir;
