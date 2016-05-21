@@ -15,25 +15,32 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
 
   let read_fs fs name =
     FS.size fs name >>= function
-    | `Error (FS.Unknown_key _) ->
-      Lwt.fail (Failure ("read " ^ name))
-    | `Ok size ->
-      FS.read fs name 0 (Int64.to_int size) >>= function
-      | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
-      | `Ok bufs -> Lwt.return (Cstruct.copyv bufs)
+      | `Error (FS.Unknown_key _) ->
+        Lwt.fail (Failure ("read " ^ name))
+      | `Ok size ->
+        FS.read fs name 0 (Int64.to_int size) >>= function
+        | `Error (FS.Unknown_key _) -> Lwt.fail (Failure ("read " ^ name))
+        | `Ok bufs -> Lwt.return ((Magic_mime.lookup name), (Cstruct.copyv bufs))
 
   (* dispatch files *)
-  let rec dispatcher fs ?header uri = match Uri.path uri with
-    | "" | "/" -> dispatcher fs ?header (Uri.with_path uri "index.html")
-    | path ->
-      let mimetype = Magic_mime.lookup path in
-      let headers = Cohttp.Header.add_opt header "content-type" mimetype in
-      Lwt.catch
-        (fun () ->
-           read_fs fs path >>= fun body ->
-           S.respond_string ~status:`OK ~body ~headers ())
-        (fun exn ->
-           S.respond_not_found ())
+  let dispatcher fs ?header uri = 
+    let path = 
+      let p = Uri.path uri in 
+      match p.[ (String.length p) - 1 ] with  
+      | '/' ->  p ^ "index.html"
+      | _ -> p 
+    in 
+    let read_fs_path fs path = 
+      read_fs fs path >>= fun (mimetype, body) ->
+        let headers = Cohttp.Header.add_opt header "content-type" mimetype in
+        S.respond_string ~status:`OK ~body ~headers ()
+    in 
+    Lwt.catch
+      (fun () -> read_fs_path fs path) 
+      (fun exn ->  
+        Lwt.catch 
+        (fun () -> read_fs_path fs (path ^ "/index.html"))
+        (fun exn -> S.respond_not_found ()))
 
   (* Redirect to the same address, but in https. *)
   let redirect uri =
@@ -48,7 +55,7 @@ module Dispatch (C: CONSOLE) (FS: KV_RO) (S: HTTP) = struct
       let uri = Cohttp.Request.uri request in
       let cid = Cohttp.Connection.to_string cid in
       log c "[%s] serving %s." cid (Uri.to_string uri);
-      f uri
+      f uri 
     in
     let conn_closed (_,cid) =
       let cid = Cohttp.Connection.to_string cid in
@@ -113,7 +120,7 @@ struct
     tls_init keys >>= fun cfg ->
     (* 31536000 seconds is roughly a year *)
     let header = Cohttp.Header.init_with "Strict-Transport-Security" "max-age=31536000" in
-    let https flow = Dispatch_https.serve c flow (Dispatch_https.dispatcher ~header data) in
+    let https flow = Dispatch_https.serve c flow (Dispatch_https.dispatcher ~header data ) in
     let http  flow = Dispatch_http.serve  c flow Dispatch_http.redirect in
     S.listen_tcpv4 stack ~port:443 (with_tls c cfg ~f:https);
     S.listen_tcpv4 stack ~port:80  http;
